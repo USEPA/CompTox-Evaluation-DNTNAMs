@@ -1,0 +1,2666 @@
+---
+title: "Manuscript: DNT NAM battery"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    code_folding: hide 
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+library(ggplot2)
+library(stats)
+library(gplots)
+library(dplyr)
+library(data.table)
+library(stringr)
+library(openxlsx)
+library(viridis)
+library(gridExtra)
+library(factoextra)
+library(randomForest)
+library(caret)
+library(Metrics)
+library(reshape2)
+library(tcpl)
+library(corrplot)
+library(DT)
+library(httk)
+library(ggpmisc)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Introduction
+This code accompanies the manuscript, Carstens et al., “Evaluation of in vitro New Approach Methodologies for Developmental Neurotoxicity”. The corresponding author can be reached at paul-friedman.katie@epa.gov for any additional questions.
+
+
+# 2. Background code {.tabset .tabset-pills}
+The code sections below provide the R setup, database retrieved, and dataset compilation. The code is hidden by default but can be expanded for viewing globally by clicking “Show All Code” or by section by clicking the “code” boxes.
+
+## 2.1 R Session information
+See the R sessionInfo() used below
+
+```{r echo=FALSE}
+print(sessionInfo())
+
+```
+
+## 2.2 Load data from database: Invitrodb
+| Multi-concentration data in the database, invitrodb, was saved in two .Rdata files by assay technology: MEA_NFA or HCI.
+| "file='./source/HCI_13Apr2020.RData'"
+| "file='./source/ccte_mea_dev_data_12nov2020_manuscript.RData'"
+
+```{r Create data files, results= "hide", warning=FALSE, message=FALSE}
+# ## Make MEA DEV data package
+# 
+# shafer <- tcplLoadAeid(val=20, fld='asid',add.fld='acid')
+# mea.dev <- shafer[grepl('NHEERL_MEA_dev', aenm), aeid]
+# mea.dev.acid <- unique(tcplLoadAcid(val=mea.dev, fld='aeid')$acid)
+# mea.tbl <- tcplLoadAcid(val=mea.dev.acid, fld='acid', add.fld='aeid')
+# mea.tbl$aenm <- shafer$aenm[match(mea.tbl$aeid,shafer$aeid)]
+# 
+# mc0.mea.dev <- tcplPrepOtpt(tcplLoadData(lvl=0,type='mc', fld='acid',val=mea.dev.acid))
+# mc1.mea.dev <- tcplPrepOtpt(tcplLoadData(lvl=1,type='mc', fld='acid',val=mea.dev.acid))
+# mc3.mea.dev <- tcplPrepOtpt(tcplLoadData(lvl=3, type='mc',fld='aeid',val=mea.dev))
+# mc5.mea.dev <- tcplPrepOtpt(tcplLoadData(lvl=5,type='mc', fld='aeid',val=mea.dev))
+# mc6 <- tcplPrepOtpt(tcplLoadData(lvl=6, fld='m4id', val=mc5.mea.dev$m4id, type='mc'))
+# setDT(mc6)
+# mc6_mthds <- mc6[ , .( mc6_mthd_id = paste(mc6_mthd_id, collapse=",")), by = m4id]
+# mc6_flags <- mc6[ , .( flag = paste(flag, collapse=";")), by = m4id]
+# mc5.mea.dev$mc6_flags <- mc6_mthds$mc6_mthd_id[match(mc5.mea.dev$m4id, mc6_mthds$m4id)]
+# mc5.mea.dev[, flag.length := ifelse(!is.na(mc6_flags), count.fields(textConnection(mc6_flags), sep =','), NA)]
+# mc5.mea.dev[hitc==1,ac50_uM := ifelse(!is.na(modl_ga), 10^modl_ga, NA)]
+# mc5.mea.dev[hitc==1,acc_uM := ifelse(!is.na(modl_acc), 10^modl_ga, NA)]
+# 
+# # filter the dataset, with coarse filters
+# mc5.mea.dev[hitc==1 & flag.length < 3, use.me := 1]
+# mc5.mea.dev[hitc==1 & is.na(flag.length), use.me := 1]
+# mc5.mea.dev[hitc==1 & flag.length >= 3, use.me := 0]
+# mc5.mea.dev[fitc %in% c(36,45), use.me := 0]
+# mc5.mea.dev[hitc==-1, use.me := 0] # make hitc interpretable as a positive sum
+# mc5.mea.dev[use.me==0, modl_ga := as.numeric(NA)]
+# mc5.mea.dev[use.me==0, hitc := 0]
+# mc5.mea.dev[hitc==0, modl_ga := as.numeric(NA)]
+# 
+# # label activity type
+# mea.tbl[acid %in% c(2471,2472,2473,2474), activity := 'General']
+# mea.tbl[acid %in% c(2475, 2476, 2477, 2478, 2481), activity := 'Bursting']
+# mea.tbl[acid %in% c(2479,2480,2482,2483,2484,2485,2486,2487), activity := 'Network Connectivity']
+# mea.tbl[acid %in% c(2488,2489), activity := 'Cytotoxicity']
+# 
+# mea.tbl[activity=='General', number :=1]
+# mea.tbl[activity=='Bursting', number :=2]
+# mea.tbl[activity=='Network Connectivity', number :=3]
+# mea.tbl[activity=='Cytotoxicity', number :=4]
+# 
+# save(mc0.mea.dev,
+#      mc3.mea.dev,
+#      mc5.mea.dev,
+#      shafer,
+#      mea.tbl,
+#      file='./source/ccte_mea_dev_data_12nov2020_manuscript.RData')
+# 
+# ## make HCI data package
+# 
+# hci.tbl <- tcplLoadAcid(add.fld='aeid',val=31,fld='asid')
+# hci.tbl
+# 
+# hci.mc0 <- tcplPrepOtpt(tcplLoadData(lvl=0,type='mc',fld='acid',val=hci.tbl$acid))
+# hci.mc3 <- tcplPrepOtpt(tcplLoadData(lvl=3,type='mc',fld='aeid',val=hci.tbl$aeid))
+# hci.mc5 <- tcplPrepOtpt(tcplLoadData(lvl=5,type='mc',fld='aeid',val=hci.tbl$aeid))
+# 
+# mc6 <- tcplPrepOtpt(tcplLoadData(lvl=6, fld='m4id', val=hci.mc5$m4id, type='mc'))
+# setDT(mc6)
+# mc6_mthds <- mc6[ , .( mc6_mthd_id = paste(mc6_mthd_id, collapse=",")), by = m4id]
+# mc6_flags <- mc6[ , .( flag = paste(flag, collapse=";")), by = m4id]
+# hci.mc5$mc6_flags <- mc6_mthds$mc6_mthd_id[match(hci.mc5$m4id, mc6_mthds$m4id)]
+# hci.mc5[, flag.length := ifelse(!is.na(mc6_flags), count.fields(textConnection(mc6_flags), sep =','), NA)]
+# hci.mc5[hitc==1,ac50_uM := ifelse(!is.na(modl_ga), 10^modl_ga, NA)]
+# hci.mc5[hitc==1,acc_uM := ifelse(!is.na(modl_acc), 10^modl_ga, NA)]
+# 
+# # filter the dataset, with coarse filters
+# hci.mc5[hitc==1 & flag.length < 3, use.me := 1]
+# hci.mc5[hitc==1 & is.na(flag.length), use.me := 1]
+# hci.mc5[hitc==1 & flag.length >= 3, use.me := 0]
+# hci.mc5[fitc %in% c(36,45), use.me := 0]
+# hci.mc5[hitc==-1, use.me := 0] # make hitc interpretable as a positive sum
+# hci.mc5[use.me==0, modl_ga := as.numeric(NA)]
+# hci.mc5[use.me==0, hitc := 0]
+# hci.mc5[hitc==0, modl_ga := as.numeric(NA)]
+# 
+# # label activity types
+# hci.tbl[aeid %in% c(2777:2780), activity := 'NOG initiation, rat']
+# hci.tbl[aeid %in% c(2781:2788), activity := 'Synaptogenesis/maturation, rat']
+# hci.tbl[aeid %in% c(2789:2792), activity := 'NOG initiation, hN2']
+# hci.tbl[aeid %in% c(2793:2794), activity := 'Apoptosis/viability, hNP1']
+# hci.tbl[aeid %in% c(2795:2797), activity := 'Proliferation, hNP1']
+# 
+# hci.tbl[activity == 'NOG initiation, rat', number :=1]
+# hci.tbl[activity == 'Synaptogenesis/maturation, rat', number :=2]
+# hci.tbl[activity == 'NOG initiation, hN2', number :=3]
+# hci.tbl[activity == 'Apoptosis/viability, hNP1', number :=4]
+# hci.tbl[activity == 'Proliferation, hNP1', number :=5]
+# 
+# save(hci.tbl,
+#      hci.mc0,
+#      hci.mc3,
+#      hci.mc5,
+#      file='./source/HCI_13Apr2020.RData')
+```
+## 2.3 Chemical Information
+```{r Supplemental Table 1, warning=FALSE, message=FALSE}
+#-------------------------------------------------------------
+#Load HCI and NFA data
+#-------------------------------------------------------------
+load(file='./source/HCI_13Apr2020.RData')
+load(file='./source/ccte_mea_dev_data_12nov2020_manuscript.RData')
+
+tested.both <- intersect(mc5.mea.dev$dsstox_substance_id, hci.mc5$dsstox_substance_id)
+tested.both <- tested.both[!is.na(tested.both)]
+
+#unique spids
+chems <- unique(mc5.mea.dev[dsstox_substance_id %in% tested.both, c('chnm', 'casn', 'dsstox_substance_id', 'spid')])
+
+#add hitsum and min.potency
+mc5.mea.dev <- mc5.mea.dev[!(grep('DIV12', aenm)),]
+mc5.mea.dev <- mc5.mea.dev[, hitsum := sum(hitc), by=spid] #hitsum (after coarse filters)
+mc5.mea.dev <- mc5.mea.dev[, min.potency := min(modl_ga, na.rm=T), by=spid] #add min potency by SPID
+
+#-------------------------------------------------------------
+#Filter for 'most active' SPID in the case of replicates (only in NFA data)
+#-------------------------------------------------------------
+#'Most active'= compound with larger hitsum or more potent if equal hitsum
+dups <- chems[which(duplicated(chems$casn)),]
+
+dups.hitsum <- unique(mc5.mea.dev[casn %in% dups$casn, c('spid','chnm','casn','dsstox_substance_id','hitsum','min.potency')]) #only replicates
+
+#find most active SPID for replicates
+dups.hitsum <- dups.hitsum[, most.active := max(hitsum), by="casn"]
+dups.hitsum <- dups.hitsum[most.active == hitsum, most.active.spid := spid, by="casn"]
+most.active <- dups.hitsum[!is.na(most.active.spid),]
+
+#were any duplicated (indicating that hitsum was equal)?
+dups2 <- most.active[duplicated(chnm),chnm]
+include.spids1 <- most.active[!chnm %in% dups2,spid] #only use spids where a 'most active' was identified
+
+#select spid for equal hitsum
+most.active.equal <- most.active[chnm %in% dups2,]
+#for hitsum>0 and equal, choose SPID with most potent min potency and fewest flags
+hitsum.equal <- most.active.equal[hitsum>0 & min(min.potency),] #Permethrin=EX000346
+#for hitsum=0, manually choose
+hitsum0 <- most.active.equal[hitsum == 0,] #D-Glucitol=EPAPLT0169A05, Glyphosate= MEA20201109A10
+#SPIDs to include from 'most.active.equal'
+include.spids2 <- c("EPAPLT0169A05", "MEA20201109A10", "EX000346")
+
+#all spids to include from 'dups.hitsum'
+include.spids <- c(include.spids1,include.spids2)
+#spids to exclude
+exclude.spids <- setdiff(dups.hitsum$spid, include.spids)
+write.csv(exclude.spids, "output/excluded_spids_nfa.csv")
+
+exclude <- read.csv("output/excluded_spids_nfa.csv")
+
+chems <- chems[!spid %in% exclude$x,]
+
+#-------------------------------------------------------------
+#Prepare summary table
+#-------------------------------------------------------------
+#add names column and update 'Loperamide HCl"
+chems[,names := chnm]
+chems[names=="4-(4-Chlorophenyl)-4-hydroxy-N,N-dimethyl-alpha,alpha-diphenylpiperidine-1-butyramide monohydrochloride", names:= 'Loperamide HCl']
+
+#add min/ max tested
+chems$min.uM.tested.nfa <- mc5.mea.dev[, 10^logc_min][match(chems$dsstox_substance_id, mc5.mea.dev$dsstox_substance_id)]
+chems$max.uM.tested.nfa <- mc5.mea.dev[, 10^logc_max][match(chems$dsstox_substance_id, mc5.mea.dev$dsstox_substance_id)]
+hci.mc5[, min.logc_min := min(logc_min), by=dsstox_substance_id]
+chems$min.uM.tested.hci <- hci.mc5[, 10^min.logc_min][match(chems$dsstox_substance_id, hci.mc5$dsstox_substance_id)]
+chems$max.uM.tested.hci <- hci.mc5[, 10^logc_max][match(chems$dsstox_substance_id, hci.mc5$dsstox_substance_id)]
+
+#add in vivo DNT NAM evaluation chemicals
+dnt.pos.neg <- setDT(read.xlsx("input/DNT_evaluation_chems_Mundy_2015.xlsx"))
+chems$in.vivo.eval <- dnt.pos.neg$is.pos.mundy[match(chems$chnm, dnt.pos.neg$names)] #Supplemental Table 1
+chems <- chems %>% mutate_at(vars(min.uM.tested.nfa, max.uM.tested.nfa), ~round(.,3))  %>% arrange(chnm)
+
+datatable(chems, filter='top',
+          options=list(pagelength=25, autoWidth=FALSE,  scrollX=TRUE, initComplete = JS(
+            "function(settings, json) {",
+            "$('body').css({'font-family': 'Calibri'});",
+            "}"
+          )))
+
+
+```
+
+
+# 3. NFA and HCI assay performance {.tabset .tabset-pills}
+
+## 3.1 NFA hitsum frequency distribution
+```{r NFA hitsum distribution, warning=FALSE, fig.height=4, fig.width=8}
+chems$hitsum <- mc5.mea.dev$hitsum[match(chems$spid,mc5.mea.dev$spid)]
+hist(chems$hitsum,
+     breaks=21,
+     ylim=c(0,30),
+     xlim=c(0,25),
+     col="black",
+     border="white",
+     main="Frequency distribution:\nHitsum in NFA (36 endpoints)",
+     xlab="Hitsum across NFA",
+     ylab="Frequency of Chemicals")
+
+
+png("figures/Supp_fig1_NFA_histo_hitsum.png", width=8, heigh=4, units="in", res=300)
+hist(chems$hitsum,
+     breaks=21,
+     ylim=c(0,30),
+     xlim=c(0,25),
+     col="black",
+     border="white",
+     main="Frequency distribution:\nHitsum in NFA (36 endpoints)",
+     xlab="Hitsum across NFA",
+     ylab="Frequency of Chemicals")
+dev.off()
+
+```
+
+## 3.2 NFA: assay reproducibility
+| Code to compute NFA assay reproducibility:
+| 1. Identify MEA NFA assay reference chemicals.
+| 2. Calculate reproducibility metrics.
+| 3. Calculate the coefficient of variation for DMSO.
+| 4. Calculate Z' factor (zprm), strictly standardized mean difference (SSMD), and signal-to-noise ratio (SN).
+| 5. Setup data table for heatmap of reference chemical potencies.
+
+```{r NFA assay reproducibility, results= "hide", warning=FALSE, message=FALSE}
+#-------------------------------------------------------------
+#Load data
+#-------------------------------------------------------------
+load(file='./source/HCI_13Apr2020.RData')
+load(file='./source/ccte_mea_dev_data_12nov2020_manuscript.RData')
+
+#exclude aenm 'DIV12'
+mc5.mea.dev <- mc5.mea.dev[!(grep('DIV12', aenm)),]
+mc3.mea.dev <- mc3.mea.dev[!(grep('DIV12', aenm)),]
+mc0.mea.dev <- mc0.mea.dev[!(grep('DIV12', acnm)),]
+mea.tbl<- mea.tbl[!grep('DIV12', aenm),]
+
+#only chems in HCI
+mc5.mea.dev2 <- mc5.mea.dev[casn %in% hci.mc5$casn]
+
+#-------------------------------------------------------------
+#Assay reproducibility
+#-------------------------------------------------------------
+
+# MEA reference chemicals
+#-----------------------------------------------------------------------------------#
+ref.dtxsid <- c('DTXSID2020006',
+                'DTXSID50157932',
+                'DTXSID20274180',
+                'DTXSID00880006',
+                'DTXSID4040684',
+                'DTXSID2037269'
+)
+
+pos.ref.dtxsid <- c(
+  'DTXSID50157932',
+  'DTXSID20274180',
+  'DTXSID00880006',
+  'DTXSID4040684',
+  'DTXSID2037269'
+)
+
+neg.ref.dtxsid <- c('DTXSID2020006')
+
+mc0.mea.dev.pos <- mc0.mea.dev[dsstox_substance_id %in% pos.ref.dtxsid|wllt=='n']
+
+da <- c('Domoic acid')
+b1 <- c('Bisindolylmaleimide I')
+lo <- c('Loperamide')
+me <- c('Mevastatin')
+so <- c('Sodium orthovandate')
+
+mc3.mea.dev.pos <- mc3.mea.dev[dsstox_substance_id %in% pos.ref.dtxsid|wllt=='n'] # may be some wllt==n that are EtOH but these other solvents don't seem fundamentally different
+unique(mc3.mea.dev[wllt=='n',spid])
+mc3.mea.dev.pos[wllt=='n', chnm := spid]
+mc3.mea.dev.pos <- mc3.mea.dev.pos[!(spid %in% c("DMSO/Ethanol","Water","Ethanol"))]
+mc3.mea.dev.pos[,max.cndx := max(cndx), by=list(spid)]
+mc3.mea.dev.pos2 <- mc3.mea.dev.pos[max.cndx==cndx]
+unique(mc3.mea.dev.pos2[wllt=="n",spid])
+
+# Assay reproducibility metrics for MEA NFA (use one spid per dsstox_substance_id)
+#-----------------------------------------------------------------------------------#
+aq <- function(ac){
+  dat <- mc3.mea.dev.pos2
+  #dat <- dat[wllq==1]
+  agg <- dat[ , list(
+    spid = spid,
+    chnm = chnm,
+    dsstox_substance_id = dsstox_substance_id,
+    nmed = median(resp[wllt=="n"], na.rm=TRUE),
+    nmad = mad(resp[wllt=="n"], na.rm=TRUE),
+    da.med = median(resp[spid=='MEA20201109A4'], na.rm=TRUE),
+    da.mad = mad(resp[spid=='MEA20201109A4'], na.rm=TRUE),
+    b1.med = median(resp[spid=='MEA20201109A3'], na.rm=TRUE),
+    b1.mad = mad(resp[spid=='MEA20201109A3'], na.rm=TRUE),
+    lo.med = median(resp[spid=='MEA20201109A13'], na.rm=TRUE),
+    lo.mad = mad(resp[spid=='MEA20201109A13'], na.rm=TRUE),
+    me.med = median(resp[spid=='MEA20201109A5'], na.rm=TRUE),
+    me.mad = mad(resp[spid=='MEA20201109A5'], na.rm=TRUE),
+    so.med = median(resp[spid=='EX000499'], na.rm=TRUE),
+    so.mad = mad(resp[spid=='EX000499'], na.rm=TRUE)
+  ), by = list(aeid, aenm)] 
+  
+  agg[ , zprm.da := 1 - ((3 * (da.mad + nmad)) / abs(da.med - nmed))]
+  agg[ , zprm.b1 := 1 - ((3 * (b1.mad + nmad)) / abs(b1.med - nmed))]
+  agg[ , zprm.lo := 1 - ((3 * (lo.mad + nmad)) / abs(lo.med - nmed))]
+  agg[ , zprm.me := 1 - ((3 * (me.mad + nmad)) / abs(me.med - nmed))]
+  agg[ , zprm.so := 1 - ((3 * (so.mad + nmad)) / abs(so.med - nmed))]
+  
+  agg[ , ssmd.da := (da.med - nmed) / sqrt(da.mad^2 + nmad^2 )]
+  agg[ , ssmd.b1 := (b1.med - nmed) / sqrt(b1.mad^2 + nmad^2 )]
+  agg[ , ssmd.lo := (lo.med - nmed) / sqrt(lo.mad^2 + nmad^2 )]
+  agg[ , ssmd.me := (me.med - nmed) / sqrt(me.mad^2 + nmad^2 )]
+  agg[ , ssmd.so := (so.med - nmed) / sqrt(so.mad^2 + nmad^2 )]
+  
+  # agg[ , cv     := nmad / nmed]
+  agg[ , sn.da :=  (da.med - nmed) / nmad]
+  agg[ , sn.b1 :=  (b1.med - nmed) / nmad]
+  agg[ , sn.lo :=  (lo.med - nmed) / nmad]
+  agg[ , sn.me :=  (me.med - nmed) / nmad]
+  agg[ , sn.so :=  (so.med - nmed) / nmad]
+  
+  agg[ , sb.da :=  da.med / nmed]
+  agg[ , sb.b1 :=  b1.med / nmed]
+  agg[ , sb.lo :=  lo.med / nmed]
+  agg[ , sb.me :=  me.med / nmed]
+  agg[ , sb.so :=  so.med / nmed]
+  
+  acqu <- agg[ , list( nmed   = round(median(nmed, na.rm = TRUE),4),
+                       nmad   = round(median(nmad, na.rm = TRUE), 4),
+                       da.med = round(median(da.med, na.rm = TRUE),4),
+                       da.mad = round(median(da.mad, na.rm = TRUE),4),
+                       b1.med = round(median(b1.med, na.rm = TRUE),4),
+                       b1.mad = round(median(b1.mad, na.rm = TRUE),4),
+                       lo.med = round(median(lo.med, na.rm = TRUE),4),
+                       lo.mad = round(median(lo.mad, na.rm = TRUE),4),
+                       me.med = round(median(me.med, na.rm = TRUE),4),
+                       me.mad = round(median(me.mad, na.rm = TRUE),4),
+                       so.med = round(median(so.med, na.rm = TRUE),4),
+                       so.mad = round(median(so.mad, na.rm = TRUE),4),
+                       zprm.da = round(median(zprm.da, na.rm = TRUE),4),
+                       zprm.b1 = round(median(zprm.b1, na.rm = TRUE),4),
+                       zprm.lo = round(median(zprm.lo, na.rm = TRUE),4),
+                       zprm.me = round(median(zprm.me, na.rm = TRUE),4),
+                       zprm.so = round(median(zprm.so, na.rm = TRUE),4),
+                       ssmd.da = round(median(ssmd.da, na.rm = TRUE),2),
+                       ssmd.b1 = round(median(ssmd.b1, na.rm = TRUE),2),
+                       ssmd.lo = round(median(ssmd.lo, na.rm = TRUE),2),
+                       ssmd.me = round(median(ssmd.me, na.rm = TRUE),2),
+                       ssmd.so = round(median(ssmd.so, na.rm = TRUE),2),
+                       sn.da = round(median(sn.da, na.rm = TRUE),4),
+                       sn.b1 = round(median(sn.b1, na.rm = TRUE),4),
+                       sn.lo = round(median(sn.lo, na.rm = TRUE),4),
+                       sn.me = round(median(sn.me, na.rm = TRUE),4),
+                       sn.so = round(median(sn.so, na.rm = TRUE),4),
+                       sb.da = round(median(sb.da, na.rm = TRUE),4),
+                       sb.b1 = round(median(sb.b1, na.rm = TRUE),4),
+                       sb.lo = round(median(sb.lo, na.rm = TRUE),4),
+                       sb.me = round(median(sb.me, na.rm = TRUE),4),
+                       sb.so = round(median(sb.so, na.rm = TRUE),4)
+  ), by=list(aeid,aenm)]
+  
+  return(acqu)
+} #per acid
+
+aeids <- mea.tbl[,aeid]
+acids <- mea.tbl[,acid]
+aqList <- lapply(aeids, aq)
+aqd <- rbindlist(aqList)
+zprm.ssmd.mea.mc3 <-unique(aqd)
+zprm.ssmd.mea.mc3.df <- as.data.frame(zprm.ssmd.mea.mc3)
+
+#-----------------------------------------------------------------------------------#
+# now calculate the CV at the mc0 for the DMSO by plate median 
+mc0.mea.dev.pos <- mc0.mea.dev[dsstox_substance_id %in% pos.ref.dtxsid|wllt=='n']
+mc0.mea.dev.pos[wllt=='n', chnm := spid]
+mc0.mea.dev.pos <- mc0.mea.dev.pos[!(spid %in% c("DMSO/Ethanol","Water","Ethanol"))]
+
+acids <- mea.tbl$acid
+aeids <- mea.tbl$aeid
+
+aq <- function(ac){
+  dat <- mc0.mea.dev.pos
+  dat <- dat[wllq==1]
+  agg <- dat[ , list(
+    nmed = median(rval[wllt=="n"], na.rm=TRUE),
+    nmad = mad(rval[wllt=="n"], na.rm=TRUE)
+  ), by = list(acid, acnm, apid)]
+  
+  agg[ , cv     := (nmad / nmed)*100]
+  
+  acqu <- agg[ , list( nmed   = signif(median(nmed, na.rm = TRUE)),
+                       nmad   = signif(median(nmad, na.rm = TRUE)),
+                       cv = round(median(cv, na.rm=TRUE),2)
+  ), by = list(acid, acnm)]
+  
+  return(acqu)
+} #per acid
+
+aqList <- lapply(acids, aq)
+aqd <- rbindlist(aqList)
+aqd <-unique(aqd[,c(1:5)])
+
+cv.summary.by.acid <- aqd %>% mutate_at(vars(nmed, nmad, cv), ~round(.,2)) %>% data.table()
+#write.csv(cv.summary.by.acid, file='output/mc0_DMSO_CV_by_acid.csv')
+dmso.cv.mea.mc0.df <- as.data.frame(cv.summary.by.acid)
+
+#-----------------------------------------------------------------------------------#
+# now look at mc5 and overall hit concordance
+dat <- as.data.table(mc5.mea.dev2) #only chems in HCI
+
+agg <- dat[ , list(
+  bmad  = max(bmad, na.rm = TRUE),    #baseline median absolute deviation (mad around the first 2 tested concentrations
+  nconc = as.double(median(nconc, na.rm = TRUE)), #nominal number of concentrations tested for the assay endpoint
+  coff  = max(coff, na.rm = TRUE),  #global response cutoff established for the assay (methods available within pipeline)
+  test  = .N, #total number of samples tested in concentration response
+  acnt  = as.double(lw(hitc==1)),  # active count
+  apct  = lw(hitc==1)/.N,  # active percentage
+  icnt  = as.double(lw(hitc==0)),  #inactive count
+  ipct  = lw(hitc==0)/.N,  #inactive percentage
+  ncnt  = as.double(lw(hitc==-1)), # could not model count (<=3 concentrations with viable data)
+  npct  = lw(hitc==-1)/.N, # could not model percentage
+  mmed  = max(max_med, na.rm = TRUE), # maximum response (median at any given concentration) across entire assay endpoint
+  cmax  = 10^median(logc_max, na.rm = TRUE), # nominal maximum tested concentration (target concentration)
+  cmin  = 10^median(logc_min, na.rm = TRUE), # nominal minimum tested concentration (target concentration)
+  mtop  = max(modl_tp, na.rm = TRUE), # maximum modeled response (top of curve) across entire assay endpoint
+  nrep  = as.double(median(nrep, na.rm = TRUE)), # nominal number of replicates per sample (target number of replicates)
+  npts  = as.double(median(npts, na.rm = TRUE)), # nominal number of data points per sample
+  cnst  = lw(modl=='cnst')/.N, # percentage of sample-assayendpoints where the constant model won (may not all be 'actives')
+  hill  = lw(modl=='hill')/.N, # percentage of sample-assayendpoints where the hill model won (may not all be 'actives')
+  gnls  = lw(modl=='gnls')/.N, # percentage of sample-assayendpoints where the gain-loss model won (may not all be 'actives')
+  rmse  = median(modl_rmse, na.rm = TRUE) # median root mean squared error across all model winners for an assay endpoint
+), by = list(aeid, aenm, resp_unit)]
+
+setkeyv(agg,"aenm")
+
+agg2 <- dat[hitc >= 0 ,
+            list(n = .N,
+                 acnt = sum(hitc)
+            )
+            , by = list(aeid, chid)]
+
+agg3 <- agg2[n > 1, list(
+  ocnc = lw(acnt==n | acnt==0)/.N,  # overall concordance among chemical-replicates 
+  hcnc = lw(acnt==n)/lw(acnt>0)  # hit concordance among chemical-replicates
+  # (may be samples from different sources)
+), by = aeid]
+
+
+setkey(agg3,"aeid")
+setkey(agg, "aeid")
+agg <- agg3[agg]
+
+median(agg3$ocnc) # 0.833- so approximately 83% concordance in replicate testing in the MEA DEV assay endpoints
+overall.mea.mc5.df <- as.data.frame(agg)
+
+#-----------------------------------------------------------------------------------#
+# potency table for the MEA NFA reference chemicals
+
+mc5.ref <- mc5.mea.dev[dsstox_substance_id %in% ref.dtxsid]
+mc3.ref <- mc3.mea.dev[dsstox_substance_id %in% ref.dtxsid]
+mc5.mea.rep <- as.data.table(mc5.mea.dev2)
+mc5.mea.rep[,n := .N, by=list(chid,aeid)]
+
+mc5.mea.rep2 <- mc5.mea.rep[n>1 & !spid %in% c("DMSO","DMSO/Ethanol","Water","Ethanol")]
+
+mc5.mea.rep2[,modl.ga.mean.aeid := mean(modl_ga, na.rm=TRUE), by=list(chid,aeid)]
+mc5.mea.rep2[,modl.ga.sd.aeid := sd(modl_ga, na.rm=TRUE), by=list(chid,aeid)]
+mc5.mea.rep2[,avg.modl.ga.sd.chid := mean(modl.ga.sd.aeid,na.rm=TRUE),by=list(chid)]
+mc5.mea.rep2[,hitcprob := sum(hitc)/n, by=list(chid,aeid)]
+mc5.mea.rep2[,assay.pos := sum(hitc), by=list(spid)]
+mc5.mea.rep2[,rep.assay.pos := mean(assay.pos), by=list(chid)]
+mc5.mea.rep2[,min.modl.ga.spid := min(modl_ga, na.rm=TRUE), by=list(spid)]
+mc5.mea.rep2[,mean.modl.ga.spid := mean(modl_ga, na.rm=TRUE), by=list(spid)]
+
+repeated.stats <- unique(mc5.mea.rep2[order(chnm),c('dsstox_substance_id','chnm','spid','assay.pos',
+                                        'min.modl.ga.spid','mean.modl.ga.spid','avg.modl.ga.sd.chid')])
+#reproducibility score
+repeated.stats[, Reproducbility_Score := "Strong"]
+weak <- c('6-Propyl-2-thiouracil','Chlorpyrifos oxon','Di(2-ethylhexyl) phthalate', 'Diazinon','Methamidophos')
+equivocal <- c('Acephate', 'Acetaminophen', 'Dexamethasone')
+repeated.stats[chnm %in% weak, Reproducbility_Score := "Weak"]
+repeated.stats[chnm %in% equivocal, Reproducbility_Score := "Equivocal"]
+repeated.stats[1,Criteria := c("Strong= replicates were consistently positive with >3 hits or consistency negative with 0 hits")]
+repeated.stats[2,Criteria := c("Equivocal= 1 replicate was between 1 and ≤3 hits and 1 replicate was negative")]
+repeated.stats[3,Criteria := c("Weak= 1 replicate was positive and 1 was replicate negative or equivocal")]
+
+#table summary
+repeated.stats.summary <- repeated.stats %>% mutate_at(vars(min.modl.ga.spid,
+                                                            mean.modl.ga.spid,
+                                                            avg.modl.ga.sd.chid), ~signif(.,3)) %>% data.table()
+colnames(repeated.stats.summary)
+setnames(repeated.stats.summary,
+         c("dsstox_substance_id","chnm","spid" ,"assay.pos","min.modl.ga.spid","mean.modl.ga.spid", "avg.modl.ga.sd.chid"),
+         c("DTXSID","Chemical","Sample","Positive AEIDs","Minimum log10-AC50", "Mean log10-AC50","SD(log10-AC50), average"))
+
+repeat.chem.summary.df <- as.data.table(repeated.stats.summary)
+names(repeat.chem.summary.df)
+repeat.chem.summary.df <- repeat.chem.summary.df[repeat.chem.summary.df$DTXSID %in% hci.mc5$dsstox_substance_id,]
+length(unique(repeat.chem.summary.df$Chemical)) #20 chems, total 43 spids
+
+#### positives
+mc5.mea.dev.pos <- mc5.mea.dev[dsstox_substance_id %in% ref.dtxsid]
+
+mc5.mea.dev.pos[ ,number.pos := sum(use.me, na.rm=TRUE), by=list(spid)]
+
+mc5.mea.dev.pos[ , min.pot := min(modl_ga,na.rm=TRUE), by=list(spid)]
+mc5.mea.dev.pos[ , max.pot := max(modl_ga,na.rm=TRUE), by=list(spid)]
+mc5.mea.dev.pos[ , med.pot := median(modl_ga, na.rm=TRUE), by=list(spid)]
+
+mc5.mea.dev.pos[, min.pot.um := ifelse(!is.na(min.pot), 10^min.pot, NA)]
+mc5.mea.dev.pos[, max.pot.um := ifelse(!is.na(max.pot), 10^max.pot, NA)]
+mc5.mea.dev.pos[, med.pot.um := ifelse(!is.na(med.pot), 10^med.pot, NA)]
+
+summary <- unique(mc5.mea.dev.pos[,c('spid', 'dsstox_substance_id','chnm',
+                                     'number.pos','min.pot','med.pot','max.pot', 
+                                     'min.pot.um', 'med.pot.um', 'max.pot.um')])
+summary2 <- summary %>% mutate_if(is.numeric, ~round(.,3)) %>% data.table()
+
+#add median z', median SSMD, median SN to each control
+names(zprm.ssmd.mea.mc3.df)
+df <- as.data.frame(t(summarize_all(zprm.ssmd.mea.mc3.df[,c(5:34)], median)))
+
+df.min <- as.data.frame(t(summarize_all(zprm.ssmd.mea.mc3.df[,c(5:34)], min)))
+df.max <- as.data.frame(t(summarize_all(zprm.ssmd.mea.mc3.df[,c(5:34)], max)))
+df$range <- paste(df.min$V1,"-",df.max$V1)
+setnames(df,"V1","value")
+
+
+df$var <- rownames(df)
+df <- setDT(df)
+df[grep('da', var), chnm := 'L-Domoic acid']
+df[grep('b1', var), chnm := 'Bisindolylmaleimide I']
+df[grep('lo', var), chnm := '4-(4-Chlorophenyl)-4-hydroxy-N,N-dimethyl-alpha,alpha-diphenylpiperidine-1-butyramide monohydrochloride']
+df[grep('me', var), chnm := 'Mevastatin']
+df[grep('so', var), chnm := 'Sodium orthovanadate']
+
+df[grep('zprm', var), calc := 'Median.Zprm']
+df[grep('ssmd', var), calc := 'Median.ssmd']
+df[grep('sn.', var), calc := 'Median.SN']
+
+df.wide <- dcast.data.table(df[!is.na(calc),],
+                       chnm ~ calc, value.var="value")
+
+df[grep('zprm', var), calc2 := 'Zprm.range']
+df[grep('ssmd', var), calc2 := 'ssmd.range']
+df[grep('sn.', var), calc2 := 'SN.range']
+
+df.wide2 <- dcast.data.table(df[!is.na(calc2),],
+                       chnm ~ calc2, value.var="range")
+
+pos.spids <- c("MEA20201109A13","MEA20201109A3","MEA20201109A4","MEA20201109A5","EX000499")
+assay.ctrl.pos <- summary2[spid %in% pos.spids,] #exclude negative control and use only spid of interest
+
+pos.tbl <- merge(assay.ctrl.pos[,c(1:4,8:10)],df.wide, by='chnm')
+pos.tbl <- merge(pos.tbl, df.wide2, by='chnm')
+names(pos.tbl)
+pos.tbl.nfa <- pos.tbl[,c(1:7,9,12,10,13,8,11)] #Supplemental Table 6
+
+datatable(pos.tbl.nfa, filter='top',
+          options=list(pagelength=25, autoWidth=FALSE,  scrollX=TRUE, initComplete = JS(
+            "function(settings, json) {",
+            "$('body').css({'font-family': 'Calibri'});",
+            "}"
+          )))
+
+
+#-------------------------------------------------------------
+#Prepare summary table for heatmap
+#-------------------------------------------------------------
+mc5.mea.dev.pos <- mc5.mea.dev2[dsstox_substance_id %in% ref.dtxsid]
+unique(mc5.mea.dev.pos$chnm)
+
+#mea.dev <- unique(mea.tbl[,c('aenm', 'activity')])
+colnames(mc5.mea.dev)
+mat.ref <- dcast.data.table(mc5.mea.dev[dsstox_substance_id %in% ref.dtxsid],
+                            chnm + + casn + dsstox_substance_id + spid ~ aenm,
+                            value.var = c('modl_ga')
+)
+
+mat.ref[, names := paste0(chnm)]
+
+mat.ref$names
+mat.ref[names=="4-(4-Chlorophenyl)-4-hydroxy-N,N-dimethyl-alpha,alpha-diphenylpiperidine-1-butyramide monohydrochloride", names:= 'Loperamide HCl']
+length(unique(mat.ref$names)) # 15 samples for 6 substances
+head(mat.ref)
+
+mat2.ref <- mat.ref[,lapply(.SD, function(x){ifelse(is.na(x),6,x)}), .SDcol=c(5:41)]
+
+#order rows
+colnames(mat2.ref)
+mat2.ref$names
+mat2.ref <- mat2.ref[c(7:10,1:3,11,12,13:15,4:6),]
+mat2.ref$names
+
+#rename repeats
+dups <- which(duplicated(mat2.ref$names))
+mat2.ref[c(dups), names := paste0(names, "_", 'rep1') ]
+mat2.ref$names
+which(duplicated(mat2.ref$names))
+mat2.ref[3, names := "Bisindolylmaleimide I_rep2"]
+mat2.ref[4, names := "Bisindolylmaleimide I_rep3"]
+mat2.ref[7, names := "Loperamide HCl_rep2"]
+mat2.ref[15, names := "Acetaminophen_rep2"]
+mat2.ref$names
+
+matrix <- as.matrix(mat2.ref[,1:36])
+rownames(matrix) <- mat2.ref[,names]
+nrow(matrix)
+mea.dev.2 <- as.data.table(colnames(matrix))
+mea.dev.2$number <- mea.tbl$number[match(mea.dev.2$V1, mea.tbl$aenm)]
+mea.dev.2$activity <- mea.tbl$activity[match(mea.dev.2$V1, mea.tbl$aenm)]
+
+```
+
+## 3.3 NFA: Heatmap of assay positive control activity
+```{r NFA: heatmap asasy positive controls, warning=FALSE, fig.height=8, fig.width=10}
+
+heatmap.2(matrix, scale='none', 
+          col=viridis(20,option='D'), 
+          trace='none', density.info = 'none',
+          colsep = c(1:35), rowsep = c(1:15), sepcolor='white', sepwidth=c(0.05,0.05),
+          Rowv=F,
+         
+          hclustfun = function(x) hclust(x, method="ward.D2"),
+          labRow = row.names(matrix),
+          labCol = substr(colnames(matrix),20,70),
+          #labCol = NA,
+          margins = c(10,16),
+          cexRow =1.4,
+          cexCol=0.8,
+          ColSideColors = as.character(as.numeric(mea.dev.2$number)),
+          srtCol=45,
+          keysize=0.8)
+
+legend(
+  xpd=TRUE, x=0.8, y=1.1,
+  title='Activity Type',
+  legend = unique(mea.dev.2$activity),
+  col = unique(as.numeric(mea.dev.2$number)), 
+  bty='n',
+  lty= 1,             
+  lwd = 5,           
+  cex=0.8
+)
+
+#save to file
+file.dir <- paste("./figures/", sep="")
+file.name <- paste("/Supp_fig2a_mea_nfa_ref_chem_", Sys.Date(), ".png", sep="")
+file.path <- paste(file.dir, file.name, sep="")
+dir.create(path=file.dir, showWarnings = FALSE, recursive = TRUE)
+png(file.path, 
+    width = 10, 
+    height = 8, 
+    units = "in",
+    res = 300)
+
+heatmap.2(matrix, scale='none', 
+          col=viridis(20,option='D'), 
+          trace='none', density.info = 'none',
+          colsep = c(1:35), rowsep = c(1:15), sepcolor='white', sepwidth=c(0.05,0.05),
+          Rowv=F,
+         
+          hclustfun = function(x) hclust(x, method="ward.D2"),
+          labRow = row.names(matrix),
+          labCol = substr(colnames(matrix),16,50),
+          #labCol = NA,
+          margins = c(10,16),
+          cexRow =1.4,
+          cexCol=0.8,
+          ColSideColors = as.character(as.numeric(mea.dev.2$number)),
+          srtCol=45,
+          keysize=0.8)
+
+legend(
+  xpd=TRUE, x=0.8, y=1.1,
+  title='Activity Type',
+  legend = unique(mea.dev.2$activity),
+  col = unique(as.numeric(mea.dev.2$number)), 
+  bty='n',
+  lty= 1,             
+  lwd = 5,           
+  cex=0.8
+)
+
+dev.off()
+```
+
+## 3.4 HCI: assay reproducibility
+| Code to compute HCI assay reproducibility:
+| 1. Identify HCI assay reference chemicals.
+| 2. Calculate reproducibility metrics.
+| 3. Calculate the coefficient of variation for DMSO.
+| 4. Calculate Z' factor (zprm), strictly standardized mean difference (SSMD), and signal-to-noise ratio (SN).
+| 5. Setup data table for heatmap of reference chemical activity.
+
+```{r HCI assay reproducibility, results= "hide", warning=FALSE, message=FALSE}
+mc0.hci.dev.pos <- hci.mc0[dsstox_substance_id %in% pos.ref.dtxsid|wllt=='n']
+mc0.hci.dev.pos[wllt=='n', chnm := spid]
+unique(hci.mc0[wllt %in% 'n',spid])
+mc0.mea.dev.pos <- mc0.mea.dev.pos[(!spid %in% c("DMSO/Ethanol","Water","Ethanol"))]
+
+acids <- hci.tbl$acid
+aeids <- hci.tbl$aeid
+
+aq <- function(ac){
+  dat <- mc0.hci.dev.pos
+  dat <- dat[wllq==1]
+  agg <- dat[ , list(
+    nmed = median(rval[wllt=="n"], na.rm=TRUE),
+    nmad = mad(rval[wllt=="n"], na.rm=TRUE)
+  ), by = list(acid, acnm, apid)]
+  
+  agg[ , cv     := (nmad / nmed)*100]
+  
+  acqu <- agg[ , list( nmed   = signif(median(nmed, na.rm = TRUE)),
+                       nmad   = signif(median(nmad, na.rm = TRUE)),
+                       cv = round(median(cv, na.rm=TRUE),2)
+  ), by = list(acid, acnm)]
+  
+  return(acqu)
+} #per acid
+
+aqList <- lapply(acids, aq)
+aqd <- rbindlist(aqList)
+aqd <-unique(aqd[,c(1:5)])
+
+cv.summary.by.acid.hci <- aqd %>% mutate_at(vars(nmed, nmad, cv), ~round(.,2)) %>% data.table()
+
+dmso.cv.hci.mc0.df <- as.data.frame(cv.summary.by.acid.hci)
+dmso.cv.mea.hci.mc0.df <- rbind(dmso.cv.mea.mc0.df, dmso.cv.hci.mc0.df)
+
+#-----------------------------------------------------------------------------------#
+# identify control chemicals that can be used to look at assay quality
+#-----------------------------------------------------------------------------------#
+hci.mc0[spid %in% c('DMSO','Staurosporine'), chnm := spid]
+positive.table <- unique(hci.mc0[wllt %in% c('c','p','m'), c('acnm','acid','wllt','dsstox_substance_id','spid','chnm', 'conc')]) # staurosporine is 'p' for cell titer and caspase assays
+positive.table[, n.conc := .N, by=list(spid, acid)]
+# variable number of concs, so recommend taking max(conc), by spid
+
+positive.table[, max.p.conc := max(conc), by=list(acid,spid)]
+
+positive.table.df <- as.data.frame(positive.table)
+
+hci.mc0[wllt=='p', max.p.conc := max(conc), by=list(acid,spid)]
+
+#Get assay reproducibility based on hci mc0#-----------------------------------------------------------------------------------#
+
+acids <- hci.tbl[,acid]
+aq <- function(ac){
+  dat <- hci.mc0
+  dat <- dat[wllt %in% c('n','p') & wllq==1]
+  agg <- dat[ , list(
+    nmed = median(rval[wllt=="n"], na.rm=TRUE),
+    nmad = mad(rval[wllt=="n"], na.rm=TRUE),
+    pmed = median(rval[wllt=="p" & conc==max.p.conc], na.rm=TRUE),
+    pmad = mad(rval[wllt=="p" & conc==max.p.conc], na.rm=TRUE)
+  ), by = list(acid, acnm, apid)]
+  
+  agg[ , zprm.p := 1 - ((3 * (pmad + nmad)) / abs(pmed - nmed))]
+  agg[ , ssmd.p := (pmed - nmed) / sqrt(pmad^2 + nmad^2 )]
+  agg[ , cv     := (nmad / nmed)*100]
+  agg[ , sn.p :=  (pmed - nmed) / nmad]
+  agg[ , sb.p :=  pmed / nmed]
+  
+  agg[zprm.p<0, zprm.p := 0]
+  
+  acqu <- agg[ , list( nmed   = signif(median(nmed, na.rm = TRUE)),
+                       nmad   = signif(median(nmad, na.rm = TRUE)),
+                       pmed   = signif(median(pmed, na.rm = TRUE)),
+                       pmad   = signif(median(pmad, na.rm = TRUE)),
+                       zprm.p = round(median(zprm.p, na.rm=TRUE),2),
+                       ssmd.p = round(median(ssmd.p, na.rm=TRUE),0),
+                       cv = round(median(cv, na.rm=TRUE),2),
+                       sn.p = round(median(sn.p, na.rm=TRUE),2),
+                       sb.p = round(median(sb.p, na.rm=TRUE),2)
+  ), by = list(acid, acnm)]
+  
+  return(acqu)
+} #per acid
+
+aqList <- lapply(acids, aq)
+aqd <- rbindlist(aqList)
+aqd <- unique(aqd)
+aqd$p_chem <- positive.table$chnm[match(aqd$acid,positive.table$acid)]
+aqd$p_dtxsid <- positive.table$dsstox_substance_id[match(aqd$acid,positive.table$acid)]
+
+aqd <- aqd %>% mutate_at(vars(nmed,nmad,cv), ~signif(.,3)) %>% data.table()
+
+
+hci.mc0.quant.qual.df <- as.data.frame(aqd)
+
+#Get assay reproducibility based on hci mc3#-----------------------------------------------------------------------------------#
+aeids <- hci.tbl[,aeid]
+colnames(hci.mc3)
+hci.mc3[wllt=='p', max.p.conc := max(logc), by=list(aeid,spid)]
+hci.mc3[spid=='Staurosporine', chnm:= spid]
+mc3.aq <- function(ac){
+  dat <- hci.mc3
+  dat <- dat[wllt %in% c('p','n')]
+  agg <- dat[ , list(
+    spid = spid,
+    chnm = chnm,
+    dsstox_substance_id = dsstox_substance_id,
+    nmed = median(resp[wllt=="n"], na.rm=TRUE),
+    nmad = mad(resp[wllt=="n"], na.rm=TRUE),
+    pmed = median(resp[wllt=="p" & logc==max.p.conc], na.rm=TRUE),
+    pmad = mad(resp[wllt=="p" & logc==max.p.conc], na.rm=TRUE)
+  ), by = list(aeid, aenm, apid)]
+  
+  agg[ , zprm.p := 1 - ((3 * (pmad + nmad)) / abs(pmed - nmed))]
+  agg[ , ssmd.p := (pmed - nmed) / sqrt(pmad^2 + nmad^2 )]
+  agg[ , cv     := nmad / nmed]
+  agg[ , sn.p :=  (pmed - nmed) / nmad]
+  agg[ , sb.p :=  pmed / nmed]
+  
+  agg[zprm.p<0, zprm.p := 0]
+  
+  acqu <- agg[ , list( spid = spid,
+                       dsstox_substance_id = dsstox_substance_id,
+                       nmed   = signif(median(nmed, na.rm = TRUE)),
+                       nmad   = signif(median(nmad, na.rm = TRUE)),
+                       pmed   = signif(median(pmed, na.rm = TRUE)),
+                       pmad   = signif(median(pmad, na.rm = TRUE)),
+                       zprm.p = round(median(zprm.p, na.rm=TRUE),2),
+                       ssmd.p = round(median(ssmd.p, na.rm=TRUE),0),
+                       cv = round(median(cv, na.rm=TRUE),2),
+                       sn.p = round(median(sn.p, na.rm=TRUE),2),
+                       sb.p = round(median(sb.p, na.rm=TRUE),2)
+  ), by = list(aeid, aenm, chnm)]
+  
+  return(acqu)
+} #per acid
+colnames(dat)
+aqList <- lapply(aeids, mc3.aq)
+mc3.aqd <- rbindlist(aqList)
+mc3.aqd <- unique(mc3.aqd)
+positive.table$aeid <- hci.tbl$aeid[match(positive.table$acid, hci.tbl$acid)]
+mc3.aqd$p_chem <- positive.table$chnm[match(mc3.aqd$aeid, positive.table$aeid)]
+mc3.aqd$p_dtxsid <- positive.table$dsstox_substance_id[match(mc3.aqd$aeid,positive.table$aeid)]
+hci.mc3.quant.qual.df <- as.data.frame(mc3.aqd)
+
+#Get assay reproducibility based on hci mc5#-----------------------------------------------------------------------------------#
+
+dat <- hci.mc5
+
+agg <- dat[ , list(
+  bmad  = max(bmad, na.rm = TRUE),    #baseline median absolute deviation (mad around the first 2 tested concentrations
+  nconc = as.double(median(nconc, na.rm = TRUE)), #nominal number of concentrations tested for the assay endpoint
+  coff  = max(coff, na.rm = TRUE),  #global response cutoff established for the assay (methods available within pipeline)
+  test  = .N, #total number of samples tested in concentration response
+  acnt  = as.double(lw(hitc==1)),  # active count
+  apct  = lw(hitc==1)/.N,  # active percentage
+  icnt  = as.double(lw(hitc==0)),  #inactive count
+  ipct  = lw(hitc==0)/.N,  #inactive percentage
+  ncnt  = as.double(lw(hitc==-1)), # could not model count (<=3 concentrations with viable data)
+  npct  = lw(hitc==-1)/.N, # could not model percentage
+  mmed  = max(max_med, na.rm = TRUE), # maximum response (median at any given concentration) across entire assay endpoint
+  cmax  = 10^median(logc_max, na.rm = TRUE), # nominal maximum tested concentration (target concentration)
+  cmin  = 10^median(logc_min, na.rm = TRUE), # nominal minimum tested concentration (target concentration)
+  mtop  = max(modl_tp, na.rm = TRUE), # maximum modeled response (top of curve) across entire assay endpoint
+  nrep  = as.double(median(nrep, na.rm = TRUE)), # nominal number of replicates per sample (target number of replicates)
+  npts  = as.double(median(npts, na.rm = TRUE)), # nominal number of data points per sample
+  cnst  = lw(modl=='cnst')/.N, # percentage of sample-assayendpoints where the constant model won (may not all be 'actives')
+  hill  = lw(modl=='hill')/.N, # percentage of sample-assayendpoints where the hill model won (may not all be 'actives')
+  gnls  = lw(modl=='gnls')/.N, # percentage of sample-assayendpoints where the gain-loss model won (may not all be 'actives')
+  rmse  = median(modl_rmse, na.rm = TRUE) # median root mean squared error across all model winners for an assay endpoint
+), by = list(aeid, aenm, resp_unit)]
+
+setkeyv(agg,"aenm")
+
+agg2 <- dat[hitc >= 0 ,
+            list(n = .N,
+                 acnt = sum(hitc)
+            )
+            , by = list(aeid, chid)]
+
+agg3 <- agg2[n > 1, list(
+  ocnc = lw(acnt==n | acnt==0)/.N,  # overall concordance among chemical-replicates 
+  hcnc = lw(acnt==n)/lw(acnt>0)  # hit concordance among chemical-replicates
+  # (may be samples from different sources)
+), by = aeid]
+
+
+setkey(agg3,"aeid")
+setkey(agg, "aeid")
+agg <- agg3[agg]
+
+median(agg3$ocnc) # nothin with same chid tested twice
+
+mc5.apd.df <- as.data.frame(agg)
+
+#-----------------------------------------------------------------------------------#
+# potency table for the reference chemicals
+colnames(hci.mc5)
+
+# are any spids replicated in hci.mc5?
+mc5.hci.rep <- as.data.table(hci.mc5)
+mc5.hci.rep[,n := .N, by=list(chid,aeid)]
+mc5.hci.rep[n>1]
+mc5.hci.rep2 <- mc5.hci.rep[n>1 & !spid %in% c("DMSO","DMSO/Ethanol","Water","Ethanol")
+                            & !chnm %in% c('Glufosinate-P')]
+
+
+unique(positive.table$spid)
+hci.mc5.pos <- hci.mc5[spid %in% positive.table$spid]
+# none of these make it to mc5 because there are not enough concentrations to curve-fit/model for the controls
+
+hci.mc3.pos <- hci.mc3[spid %in% positive.table$spid]
+#hci.mc5.pos[ ,number.pos := sum(use.me, na.rm=TRUE), by=list(spid)]
+colnames(hci.mc3.pos)
+hci.mc3.pos[wllt=='p', max.p.conc := max(logc), by=list(aeid,spid)]
+hci.mc3.pos <- hci.mc3.pos[max.p.conc == logc]
+hci.mc3.pos[agg, coff := coff, on='aeid'] # get the cutoff for the aeid
+hci.mc3.pos[ , med.resp := median(resp, na.rm=TRUE), by=list(spid,aeid)] # median response per spid + aeid combination
+hci.mc3.pos[ , med.hitc := 0] # median hitcall default
+hci.mc3.pos[ med.resp > coff , med.hitc := 1] # median hitcall==1 if the median response > cutoff
+hci.mc3.pos[ , apid.sum := .N, by=list(spid, aeid)] # number of plates per spid + aeid combination
+hci.mc3.pos[ , med.hitc.sum := (sum(med.hitc)/apid.sum), by=list(spid)] # median number of hitc==1 per spid
+
+hci.mc3.pos[ , assay.num := length(unique(aeid)), by=list(spid)] # assays screened in the set
+
+
+unique(hci.mc3.pos[spid=='Staurosporine']$assay.num)
+unique(hci.mc3.pos[spid=='Staurosporine' & med.hitc.sum > 2]$apid) #6 aeid == 2794
+unique(hci.mc3.pos[spid=='Staurosporine' & med.hitc.sum < 2]$apid) #39
+
+summary4 <- unique(hci.mc3.pos[,c('spid','chnm','dsstox_substance_id', 'casn', 'aeid','aenm','max.p.conc','logc','coff','med.resp','med.hitc', 'med.hitc.sum', 'assay.num')])
+
+
+summary5 <- summary4 %>% mutate_at(vars(max.p.conc, logc, coff, med.resp, med.hitc.sum), ~round(.,2)) %>% data.table()
+summary5[,conc.um := ifelse(!is.na(logc), 10^logc, NA)]
+
+mc3.aqd
+mc3.aqd[,key:= paste0(aeid,'_',p_dtxsid)]
+colnames(summary5)
+summary5[,key:= paste0(aeid,'_',dsstox_substance_id)]
+
+summary6 <- merge(mc3.aqd,
+                  summary5,
+                  by=c('key'))
+summary6 <- summary6[!spid.x=='DMSO']
+colnames(summary6)
+summary7 <- summary6[,c('aeid.x','aenm.x','coff', 'med.resp','med.hitc',
+                        'chnm.x','dsstox_substance_id.x','conc.um',
+                        'zprm.p', 'ssmd.p','sn.p')]
+setnames(summary7, c('aeid.x','aenm.x','coff', 'med.resp','med.hitc',
+                     'chnm.x','dsstox_substance_id.x','conc.um',
+                     'zprm.p', 'ssmd.p','sn.p'),
+         c('aeid', 'AENM', 'COFF', 'MED.RESP', 'MED.HITC', 'CHEM', 'DTXSID','CONC.UM','Z', 'SSMD', 'SN'))
+
+summary7[aeid %in% c(2793:2794), index := 1]
+summary7[aeid %in% c(2795:2797), index := 2]
+summary7[aeid %in% c(2789:2792), index := 3]
+summary7[aeid %in% c(2777:2780), index := 4]
+summary7[aeid %in% c(2781:2788), index := 5]
+summary7 <- summary7[order(index, CHEM)]
+
+
+hci.mc5.ctrls.df <- as.data.frame(summary7)
+
+datatable(hci.mc5.ctrls.df, filter='top',
+          options=list(pagelength=25, autoWidth=FALSE,  scrollX=TRUE, initComplete = JS(
+            "function(settings, json) {",
+            "$('body').css({'font-family': 'Calibri'});",
+            "}"
+          )))
+
+#-------------------------------------------------------------
+#Prepare summary table for heatmap
+#-------------------------------------------------------------
+hci.ref.chem <- as.data.table(summary5)
+head(hci.ref.chem)
+hci.ref.hm <- dcast.data.table(hci.ref.chem,
+                               spid + chnm + casn + dsstox_substance_id ~ aenm,
+                               value.var = c('med.hitc'))
+hci.ref.hm[spid=='Staurosporine', chnm := "Staurosporine"]
+hci.ref.hm[, names := paste0(chnm)]
+
+colnames(hci.ref.hm)
+setcolorder(hci.ref.hm,
+            c(1:4,
+              21:22,
+              23:25,
+              17:20,
+              5:8,
+              9:16,
+              26))
+
+hci.ref.hm[chnm=='Staurosporine', index :=1]
+hci.ref.hm[chnm=='Aphidicolin', index :=2]
+hci.ref.hm[chnm=='NSC 23766 trihydrochloride', index := 3]
+hci.ref.hm[chnm=='Lithium chloride', index := 4]
+hci.ref.hm[chnm=='Bisindolylmaleimide I', index := 5]
+hci.ref.hm[chnm=='Sodium orthovanadate', index := 6]
+
+hci.ref.hm <- hci.ref.hm[order(index)]
+hci.ref.hm.2 <- hci.ref.hm[,lapply(.SD, function(x){ifelse(is.na(x),2,x)}), .SDcol=c(5:26)]
+
+matrix <- as.matrix(hci.ref.hm.2[,1:21])
+rownames(matrix) <- hci.ref.hm.2[,names]
+
+# now make the information for activity type
+hci.tbl$aenm <- hci.mc3$aenm[match(hci.tbl$aeid,hci.mc3$aeid)] #kc add
+
+hci.tbl[aeid %in% c(2777:2780), activity := 'NOG initiation, rat']
+hci.tbl[aeid %in% c(2781:2788), activity := 'Synaptogenesis/maturation, rat']
+hci.tbl[aeid %in% c(2789:2792), activity := 'NOG initiation, hN2']
+hci.tbl[aeid %in% c(2793:2794), activity := 'Apoptosis/viability, hNP1']
+hci.tbl[aeid %in% c(2795:2797), activity := 'Proliferation, hNP1']
+
+hci.tbl[activity == 'NOG initiation, rat', number :=1]
+hci.tbl[activity == 'Synaptogenesis/maturation, rat', number :=2]
+hci.tbl[activity == 'NOG initiation, hN2', number :=3]
+hci.tbl[activity == 'Apoptosis/viability, hNP1', number :=4]
+hci.tbl[activity == 'Proliferation, hNP1', number :=5]
+
+hci.tbl.2 <- as.data.table(colnames(matrix))
+hci.tbl.2$number <- hci.tbl$number[match(hci.tbl.2$V1, hci.tbl$aenm)]#kc change to aenm from acnm
+hci.tbl.2$activity <- hci.tbl$activity[match(hci.tbl.2$V1, hci.tbl$aenm)]#kc change to aenm from acnm
+
+```
+
+## 3.5 HCI: Heatmap of assay positive control activity 
+```{r HCI assay positive controls, fig.height=8, fig.width=8}
+
+colors <- c("#FDE725FF", "#21908CFF", "gray")
+
+heatmap.2(matrix, scale='none', 
+          col=colors, 
+          trace='none', density.info = 'none',
+          dendrogram='none', 
+          Rowv=FALSE, 
+          Colv=FALSE, #no clustering
+          colsep = c(1:20), rowsep = c(1:6), sepcolor='white', sepwidth=c(0.05,0.05),
+          #hclustfun = function(x) hclust(x, method="ward.D2"),
+          labRow = row.names(matrix),
+          labCol = substr(colnames(matrix),11,60),
+          #labCol = NA,
+          margins = c(15,25),
+          cexRow =1.4,
+          cexCol=1,
+          ColSideColors = as.character(as.numeric(hci.tbl.2$number)),
+          srtCol=45,
+          keysize=0.7,
+          lwid = c(1,4),
+          lhei = c(0.7,4,1))
+#xpd=TRUE, x=0.8, y=1.1,
+legend(
+  xpd=TRUE, x=0.75, y=1.13,
+  title='Activity Type',
+  legend = unique(hci.tbl.2$activity),
+  col = unique(as.numeric(hci.tbl.2$number)), 
+  bty='n',
+  lty= 1,             
+  lwd = 5,           
+  cex=0.8
+)
+
+file.dir <- paste("./figures/", sep="")
+file.name <- paste("/Supp_fig2b_hci_ref_chem_perf", Sys.Date(), ".png", sep="")
+file.path <- paste(file.dir, file.name, sep="")
+dir.create(path=file.dir, showWarnings = FALSE, recursive = TRUE)
+png(file.path, 
+    width = 10, 
+    height = 8, 
+    units = "in",
+    res = 450)
+
+heatmap.2(matrix, scale='none', 
+          col=colors, 
+          trace='none', density.info = 'none',
+          dendrogram='none', 
+          Rowv=FALSE, 
+          Colv=FALSE, #no clustering
+          colsep = c(1:20), rowsep = c(1:6), sepcolor='white', sepwidth=c(0.05,0.05),
+          #hclustfun = function(x) hclust(x, method="ward.D2"),
+          labRow = row.names(matrix),
+          labCol = substr(colnames(matrix),11,50),
+          #labCol = NA,
+          margins = c(15,15),
+          cexRow =1.4,
+          cexCol=1,
+          ColSideColors = as.character(as.numeric(hci.tbl.2$number)),
+          srtCol=45,
+          keysize=0.7,
+          lwid = c(1,4),
+          lhei = c(0.7,4,1))
+#xpd=TRUE, x=0.8, y=1.1,
+legend(
+  xpd=TRUE, x=0.75, y=1.13,
+  title='Activity Type',
+  legend = unique(hci.tbl.2$activity),
+  col = unique(as.numeric(hci.tbl.2$number)), 
+  bty='n',
+  lty= 1,             
+  lwd = 5,           
+  cex=0.8
+)
+
+dev.off()
+
+```
+
+# 4. Non-selective DNT NAM Activity {.tabset .tabset-pills}
+
+## 4.1 Generate matrix for heatmap
+| Code to create heatmap matrix:
+| 1. Make data table of HCI and NFA potencies (modl_ga).
+| 2. Filter for 'most active' sample so there are no replicates in the heatmap.
+| 3. Merge HCI and NFA data tables.
+| 4. Create legend of 'activity type' for heatmap.
+
+```{r Matrix for potency heatmap Figure 1, results= "hide", warning=FALSE, message=FALSE}
+
+#-----------------------------------------------------------------------------------#
+# Matrix for heatmap
+#-----------------------------------------------------------------------------------#
+
+#setup data.table of modl_ga 
+mat.all.hci <- dcast.data.table(hci.mc5[!(spid %in% c("DMSO/ethanol","Water","Ethanol", "DMSO"))],
+                                chnm + casn + dsstox_substance_id + spid ~ aenm,
+                                value.var = c('modl_ga'))
+mat.all.hci[, names := paste0(chnm)]
+mat.all.hci[names=="4-(4-Chlorophenyl)-4-hydroxy-N,N-dimethyl-alpha,alpha-diphenylpiperidine-1-butyramide monohydrochloride", names:= 'Loperamide HCl']
+length(unique(mat.all.hci$spid)) 
+length(unique(mat.all.hci$names)) # 92 samples for 92 substances
+
+#setup data.table of modl_ga for heatmap
+mat.all.nfa <- dcast.data.table(mc5.mea.dev[!(spid %in% c("DMSO/Ethanol","Water","Ethanol", "DMSO"))],
+                                chnm + casn + dsstox_substance_id + spid ~ aenm,
+                                value.var = c('modl_ga'))
+mat.all.nfa[, names := paste0(chnm)]
+mat.all.nfa[names=="4-(4-Chlorophenyl)-4-hydroxy-N,N-dimethyl-alpha,alpha-diphenylpiperidine-1-butyramide monohydrochloride", names:= 'Loperamide HCl']
+
+#only compounds tested in HCI
+mat.all.nfa <- mat.all.nfa[casn %in% hci.mc5$casn]
+length(unique(mat.all.nfa$spid)) #115 samples
+length(unique(mat.all.nfa$names)) # 92 samples for 115 substances
+
+#filter for most active spid per chemical (see section 2.3)
+mat.all.nfa <- mat.all.nfa[!spid %in% exclude$x,]
+length(unique(mat.all.nfa$spid)) #92 spids
+
+#-----------------------------------------------------------------------------------#
+#Merge HCI and NFA data.tables
+mat.all <- merge(mat.all.hci, mat.all.nfa, by=c("casn", "chnm", "dsstox_substance_id"))
+names(mat.all)
+setnames(mat.all, c("spid.x"), c("spid.HCI"))
+setnames(mat.all, c("spid.y"), c("spid.NFA"))
+mat.all <- mat.all[,c(26:27,1:4,5:25,28:63)]
+write.xlsx(mat.all, "output/NFA_HCI_modlga_matrix_05112021_up.xlsx", overwrite=T)
+
+mat.all.supp.tb8 <- mat.all[,c(4,1,5,3,2,6,7:63)]
+
+#replace NA's with 6
+names(mat.all)
+mat.all2 <- mat.all[,lapply(.SD, function(x){ifelse(is.na(x),6,x)}), .SDcol=c(7:63)]
+matrix <- as.matrix(mat.all2)
+rownames(matrix) <- mat.all[,names.x]
+
+#-----------------------------------------------------------------------------------#
+# Legend for heatmap
+#-----------------------------------------------------------------------------------#
+activity.tbl <- as.data.table(colnames(matrix))
+setnames(activity.tbl, c("V1"), c("aenm"))
+activity.tbl.colors <- read.csv("input/Activity_tbl_HCI_NFA_categories_colors.csv") #includes color-blind color selection for each endpoint
+#Color-blind: http://www.cookbook-r.com/Graphs/Colors_(ggplot2)/#a-colorblind-friendly-palette
+activity.tbl$number <- activity.tbl.colors$number[match(activity.tbl$aenm, activity.tbl.colors$aenm)]
+activity.tbl$activity <- activity.tbl.colors$activity[match(activity.tbl$aenm,activity.tbl.colors$aenm)]
+
+head(activity.tbl)
+```
+
+
+## 4.2 Heatmap
+Heatmap of potency values that includes 92 chemicals (rows), 57 endpoints (columns) with hierarchical clustering (Ward.D2)
+```{r Potency heatmap, fig.height=19, fig.width=16}
+#-----------------------------------------------------------------------------------#
+# Heatmap
+#-----------------------------------------------------------------------------------#
+heatmap.2(matrix, scale='none', 
+          col=viridis(20,option='D'), 
+          trace='none', density.info = 'none',
+          colsep = c(1:91), sepcolor='white', sepwidth=c(0.05,0.05),
+          #rowsep = c(1:5), 
+          hclustfun = function(x) hclust(x, method="ward.D2"),
+          labRow = row.names(matrix),
+          labCol = substr(colnames(matrix),1,91),
+          revC=TRUE,
+          #labCol = NA,
+          margins = c(25,25),
+          cexRow =1.2,
+          cexCol=1.2,
+          ColSideColors = as.character(activity.tbl$number),
+          srtCol=35,
+          keysize=0.8)
+
+legend(
+  xpd=TRUE, x=0.8, y=1.04,
+  title='Activity Type',
+  legend = unique(activity.tbl$activity),
+  col = unique(as.character(activity.tbl$number)), 
+  bty='n',
+  lty= 1,             
+  lwd = 5,           
+  cex=1
+)
+
+#save to file
+file.dir <- paste("./figures/", sep="")
+file.name <- paste("/Fig1_HCI_NFA_modlga_up_", Sys.Date(), ".png", sep="")
+file.path <- paste(file.dir, file.name, sep="")
+dir.create(path=file.dir, showWarnings = FALSE, recursive = TRUE)
+png(file.path, 
+    width = 16, 
+    height = 19, #change from 8 to 20
+    units = "in",
+    res = 300)
+
+heatmap.2(matrix, scale='none', 
+          col=viridis(20,option='D'), 
+          trace='none', density.info = 'none',
+          colsep = c(1:91), sepcolor='white', sepwidth=c(0.05,0.05),
+          #rowsep = c(1:5), 
+          hclustfun = function(x) hclust(x, method="ward.D2"),
+          labRow = row.names(matrix),
+          labCol = substr(colnames(matrix),1,91),
+          revC=TRUE,
+          #labCol = NA,
+          margins = c(25,25),
+          cexRow =1.2,
+          cexCol=1.2,
+          ColSideColors = as.character(activity.tbl$number),
+          srtCol=35,
+          keysize=0.8)
+
+legend(
+  xpd=TRUE, x=0.8, y=1.04,
+  title='Activity Type',
+  legend = unique(activity.tbl$activity),
+  col = unique(as.character(activity.tbl$number)), 
+  bty='n',
+  lty= 1,             
+  lwd = 5,           
+  cex=1
+)
+
+dev.off()
+
+
+```
+
+
+## 4.3 Generate correlation matrix between endpoints 
+| Code to compute correlation matrix:
+| 1. Shorten assay endpoint names.
+| 2. Create data table of AC50 values (columns=endpoints, rows=chemicals).
+| 3. Replace NA's (negative hitc) with value of 6.
+| 4. Remove zero standard deviation features.
+| 5. Generate a correlation matrix.
+```{r correlation matrix setup, results="hide"}
+
+#shorten HCI names
+mat.all.hci2 <- mat.all.hci #shorten colnames in this table
+col.hci <- grep("HCI_",names(mat.all.hci2), value=TRUE)
+col.hci <- do.call(rbind.data.frame,(strsplit(col.hci, split="MUNDY_"))) #shorten aenm string
+col.hci <- col.hci[,c(2)]
+setnames(mat.all.hci2, names(mat.all.hci2[,c(5:25)]), col.hci)
+
+#shorten NFA names
+mat.all.nfa2 <- mat.all.nfa #shorten colnames in this table
+col.nfa <- grep("dev_",names(mat.all.nfa2), value=TRUE)
+col.nfa <- do.call(rbind.data.frame,(strsplit(col.nfa, split="dev_"))) #shorten aenm string
+col.nfa <- col.nfa[,c(2)]
+setnames(mat.all.nfa2, names(mat.all.nfa2[,c(5:40)]), col.nfa)
+#reorder NFA so down and up are ordered separately
+col.down <- grep("_dn",names(mat.all.nfa2), value=TRUE)
+col.up <- grep("_up",names(mat.all.nfa2), value=TRUE)
+col.other <- names(mat.all.nfa2[,c(1:4)])
+col.order <- c(col.other,col.down,col.up)
+mat.all.nfa3 <- setcolorder(mat.all.nfa2, col.order)
+
+#merge HCI and NFA data.tables
+mat.all <- merge(mat.all.hci2, mat.all.nfa3, by=c("casn", "names", "chnm", "dsstox_substance_id"))
+names(mat.all)
+setnames(mat.all, c("spid.x"), c("spid.HCI"))
+setnames(mat.all, c("spid.y"), c("spid.NFA"))
+mat.all <- mat.all[,c(27,1:26,28:63)]
+
+#replace NA's with 6
+names(mat.all)
+df <- mat.all[,lapply(.SD, function(x){ifelse(is.na(x),6,x)}), .SDcol=c(7:63)]
+
+#remove standard deviation is zero
+df2 <- Filter(function(x) sd(x) != 0, df)
+
+#matrix
+matrix <- as.matrix(df2)
+rownames(matrix) <- mat.all[,names]
+
+#Correlogram
+V <- cor(matrix)
+#write.xlsx(cor_cov, "output/cor_cov_HCI_NFA_matrix.xlsx", rowNames=T)
+
+```
+
+## 4.4 Correlation plot
+
+```{r corrplot, fig.height=35, fig.width=35}
+#Corrplot
+corrplot(corr = V, method = "color", tl.col = "black", tl.pos = "lt", diag = FALSE,
+         cl.align.text = "l", cl.cex = 1.6, tl.cex = 1.6, number.cex = 1, addgrid.col = "grey", cl.pos = "b",
+         order = , addCoef.col = "black")
+
+pdf(paste0("figures/Supp_fig3_NFA_HCI_corrplot_fixed_up_", Sys.Date(), ".pdf"), width = 30, height = 30)
+corr <- corrplot(corr = V, method = "color", tl.col = "black", tl.pos = "lt", diag = FALSE,
+         cl.align.text = "l", cl.cex = 1.6, tl.cex = 1.6, number.cex = 1, addgrid.col = "grey", cl.pos = "b",
+         order = , addCoef.col = "black")
+dev.off()
+```
+
+# 5. Most Sensitive Assay Endpoints {.tabset .tabset-pills}
+
+## 5.1 Minimum potency by assay and endpoint
+| Code to create data table for histogram:
+| 1. Load HCI and NFA mc5 data, filter.
+| 2. Add assay name, minimum potency, and endpoints which defines minimum potency.
+| 3. Make table for histogram by assay.
+| 4. Make table for histogram by endpoint.
+
+```{r Data Table for which AENM minimum potency, results= "hide", warning=FALSE, message=FALSE}
+
+#-----------------------------------------------------------------------------------#
+# Data table for histogram
+#-----------------------------------------------------------------------------------#
+#exclude MEA 'up' endpoints and replicates:
+mea.mc5 <- mc5.mea.dev[!(grep('_up', aenm)),]
+exclude <- read.csv("output/excluded_spids_nfa.csv")
+mea.mc5 <- mea.mc5[!spid %in% exclude$x,]
+#only NFA chems in HCI
+mea.df <- mea.mc5[dsstox_substance_id %in% hci.mc5$dsstox_substance_id,]
+
+#rbind mea and hci into data table
+mea.df <- mea.df[!is.na(dsstox_substance_id), c("chnm", "dsstox_substance_id","casn","spid", "m5id",
+                    "aeid", "aenm", "logc_max", "hitc" , "modl_ga" , "use.me" )]
+hci.df <- hci.mc5[!is.na(dsstox_substance_id),c("chnm", "dsstox_substance_id","casn", "spid","m5id",
+                     "aeid", "aenm", "logc_max", "hitc" , "modl_ga" , "use.me" )]
+dnt.df <- as.data.table(rbind(hci.df, mea.df))
+length(unique(dnt.df$dsstox_substance_id)) #92 chems
+
+#make data.table of aeid/aenm for each dnt asasy
+aenm.tbl <- unique(dnt.df[,c("aeid","aenm")])
+aenm.tbl[aeid %in% c(2777:2780), assay := 'NOG initiation, rat']
+aenm.tbl[aeid %in% c(2781:2788), assay := 'Synaptogenesis/maturation, rat']
+aenm.tbl[aeid %in% c(2789:2792), assay := 'NOG initiation, hN2']
+aenm.tbl[aeid %in% c(2793:2794), assay := 'Apoptosis/viability, hNP1']
+aenm.tbl[aeid %in% c(2795:2797), assay := 'Proliferation, hNP1']
+aenm.tbl[aeid %in% c(2494:2501), assay := 'General']
+aenm.tbl[aeid %in% c(2502:2509), assay := 'Bursting']
+aenm.tbl[aeid %in% c(2510:2527), assay := 'Network Connectivity']
+aenm.tbl[aeid %in% c(2529:2530), assay := 'MEA Cytotoxicity']
+aenm.tbl[aeid %in% c(2529:2530,2780,2787,2792,2796, 2793:2794), is.cyto := 'Cytotoxicity']
+aenm.tbl[aeid %in% c(2529:2530), cyto.assay := 'MEA Cytotoxicity']
+aenm.tbl[aeid %in% c(2780), cyto.assay := 'NOG rat Cytotoxicity']
+aenm.tbl[aeid %in% c(2787), cyto.assay := 'Synaptogenesis rat Cytotoxicity']
+aenm.tbl[aeid %in% c(2792), cyto.assay := 'NOG hN2 Cytotoxicity']
+aenm.tbl[aeid %in% c(2796), cyto.assay := 'Proliferation hNP1 Cytotoxicity']
+aenm.tbl[aeid %in% c(2793:2794), cyto.assay := 'Apoptosis/viability, hNP1']
+
+#add assay column to dnt.df
+dnt.df$assay <- aenm.tbl$assay[match(dnt.df$aeid,aenm.tbl$aeid)]
+dnt.df$cyto.assay <- aenm.tbl$cyto.assay[match(dnt.df$aeid,aenm.tbl$aeid)]
+
+#add most sensitive endpoint column
+dnt.df[,min.modl.ga.chnm := min(modl_ga, na.rm=TRUE), by=list(chnm)]
+dnt.df[,min.modl.ga.chnm := ifelse(is.infinite(min.modl.ga.chnm), NA, min.modl.ga.chnm)]
+dnt.df[min.modl.ga.chnm == modl_ga, min.aenm := paste(aenm)]
+dnt.df[min.aenm==aenm, min.assay := paste(assay)]
+
+#frequency table for minimum AC50 defined by assay
+library(plyr)
+freq.min.assay <- as.data.table(count(dnt.df, 'min.assay'))
+str(freq.min.assay)
+freq.min.assay <- freq.min.assay[!is.na(min.assay),]
+freq.min.assay[, perc.min := freq/(sum(freq))*100]
+
+#frequency table for minimum AC50 defined by endpoint
+freq.min.aenm <- as.data.table(count(dnt.df, 'min.aenm'))
+str(freq.min.aenm)
+freq.min.aenm <- freq.min.aenm[!is.na(min.aenm),]
+freq.min.aenm[, perc.min := freq/(sum(freq))*100]
+setorder(freq.min.aenm, freq)
+#add 'activity type' colors for histogram
+activity.tbl.colors <- read.csv("input/Activity_tbl_HCI_NFA_categories_colors.csv")
+freq.min.aenm$number <- activity.tbl.colors$number.cyto[match(freq.min.aenm$min.aenm, activity.tbl.colors$aenm)]
+freq.min.aenm$activity<- activity.tbl.colors$activity.cyto[match(freq.min.aenm$min.aenm, activity.tbl.colors$aenm)]
+
+```
+
+## 5.2 Histogram of minimum potency by assay
+
+Histogram demonstrating the percent of chemicals in which the minimum potency was defined by each assay
+```{r Histogram: Minimum potency by assay, fig.height=12, fig.width=16}
+df <- freq.min.assay
+p <- ggplot(data=df, aes(x= reorder(min.assay, -perc.min), y=perc.min))+
+  geom_bar(stat="identity") +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))+
+  scale_y_continuous(limits=c(0,50), breaks=seq(0,60, by=10))+
+  ylab("Percent of Chemicals") +
+  xlab("") +
+  theme_classic(base_size=20) +
+  ggtitle("Min potency by assay")
+p
+file.dir <- paste("./figures/", sep="")
+file.name <- paste("/Fig2a_hist_min_assay_ac50_perc_", Sys.Date(), ".png", sep="")
+file.path <- paste(file.dir, file.name, sep="")
+dir.create(path=file.dir, showWarnings = FALSE, recursive = TRUE)
+png(file.path, width = 12, height = 8, unit='in',res = 600)
+p
+dev.off()
+```
+
+
+## 5.3 Histogram of minimum potency by endpoint
+Histogram demonstrating the percent of chemicals in which the minimum potency was defined by each endpoint.
+```{r Histogram: Minimum potency by endpoint, fig.height=8, fig.width=12}
+df <- freq.min.aenm
+df$min.aenm <- factor(df$min.aenm, levels=df$min.aenm)
+col <- as.character(df$number)
+activity <- as.character(df$activity)
+p <- ggplot(data=df, aes(x= min.aenm, y=perc.min, fill=activity))+
+  geom_bar(stat="identity") +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))+
+  #scale_y_continuous(limits=c(0,50), breaks=seq(0,60, by=10))+
+  ylab("Percent of Chemicals") +
+  xlab("") +
+  theme_classic(base_size=16) +
+  ggtitle("Min potency by endpoint") +
+  coord_flip() +
+  scale_fill_manual(breaks=c(activity), values=c(col))
+
+p
+
+file.dir <- paste("./figures/", sep="")
+file.name <- paste("/Fig2b_hist_min_endpoint_ac50_perc_", Sys.Date(), ".png", sep="")
+file.path <- paste(file.dir, file.name, sep="")
+dir.create(path=file.dir, showWarnings = FALSE, recursive = TRUE)
+png(file.path, width = 12, height = 11, unit='in',res = 600)
+p
+dev.off()
+```
+
+## 5.4 Minimum potency correlation plot
+
+```{r lm(min.hci ~ min.nfa), warning=FALSE, fig.height=5, fig.width=5}
+#find min potency per spid 
+mea.df[,min.ac50.nfa := min(modl_ga, na.rm=TRUE), by='spid']
+mea.df[,min.ac50.nfa := ifelse(is.infinite(min.ac50.nfa), NA, min.ac50.nfa)]
+mea.min.df <- unique(mea.df[,c('chnm','casn','min.ac50.nfa')])
+
+hci.df[,min.ac50.hci := min(modl_ga, na.rm=TRUE), by='spid']
+hci.df[,min.ac50.hci := ifelse(is.infinite(min.ac50.hci), NA, min.ac50.hci)]
+hci.min.df <- unique(hci.df[,c('chnm','casn','min.ac50.hci')])
+
+min.df <- merge(mea.min.df, hci.min.df, by=c('chnm','casn'))
+min.lm <- lm(min.ac50.nfa ~ min.ac50.hci, data=min.df)
+
+#plot
+cor.min <- ggplot(data=min.df, aes(y=min.ac50.hci, x=min.ac50.nfa)) +
+  geom_point(size=2)+
+  ylab('HCI min log10-AC50')+
+  xlab('NFA min log10-AC50')+
+  geom_abline(slope=1, intercept=0)+
+  geom_abline(slope=1, intercept=1/2, linetype="dashed")+
+  geom_abline(slope=1, intercept=-1/2, linetype="dashed")+
+  theme_bw()+
+  geom_smooth(method='lm', se=FALSE, color='blue',formula=y~x)+
+  stat_poly_eq(formula=y~x,
+               eq.with.lhs="italic(hat(y))~'='~",
+               aes(label=paste(..eq.label..,..rr.label..,sep="~~~")),
+               parse=TRUE)+
+  geom_abline(color='black')+
+  ggtitle("Minimum Potency: NFA vs. HCI")+
+  theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=14, face='bold'))
+cor.min
+
+summary(min.lm)
+
+file.dir <- paste("./figures/", sep="")
+file.name <- paste("/Supp_fig4_min_corr_", Sys.Date(), ".png", sep="")
+file.path <- paste(file.dir, file.name, sep="")
+dir.create(path=file.dir, showWarnings = FALSE, recursive = TRUE)
+png(file.path, width = 7, height = 7, unit='in',res = 600)
+cor.min
+dev.off()
+
+```
+
+## 5.5 Random forest regression: Minimum effect concentration 
+Use a random forest regression model to identify the most informative endpoints in predicting the minimum effect concentration for each compound.
+
+| 1) Create matrix of log10-AC50 data and minimum AC50 for each compound
+```{r curate data frame for RF regression, results= "hide", warning=FALSE, message=FALSE}
+#Load modl_ga_matrix from Section 3
+df <- as.data.frame(read.xlsx("output/NFA_HCI_modlga_matrix_05112021_up.xlsx")) #'Non-selective' potency data in wide format
+
+#exclude up endpoints
+df <- df[, -grep('_up',colnames(df))]
+
+#Add minimum ac50 to df
+names(df)
+df <- as.data.table(df)
+df <- df[, min.ac50 := (apply(df[,c(7:46)], 1, FUN=min, na.rm=TRUE))]
+df[,min.ac50 := ifelse(is.infinite(min.ac50), NA, min.ac50)]
+
+#Create data frame for lm()
+names(df)
+ac50.data <- df[,c(7:47)]
+ac50.data <- ac50.data[,lapply(.SD, function(x){ifelse(is.na(x),3,x)}), .SD] #replace NA's with 3
+#make matrix with chnm rownames
+x <- ac50.data
+names(x) <- make.names(names(x))
+rownames(x) <- df$names
+
+```
+| 2) Random forest (RF) regression results
+```{r RF regression, fig.height=15, fig.width=20}
+#Rf
+set.seed(30)
+train <- createDataPartition(x$min.ac50, p = .7, 
+                             list = FALSE, 
+                             times = 1)
+test <- x[-train,]
+rf.x <- randomForest(min.ac50~., data=x, subset=train, mtry=15, importance=T)
+rf.x
+target <- x[train, "min.ac50"]
+
+#test prediction
+pred_values<-predict(rf.x, newdata = test)
+actual_values <- test$min.ac50
+
+#calculate MAE (mean absolute error)
+print("mean absolute error")
+mae(actual_values,pred_values) #mean absolute difference between the observed values and the predicted values
+
+#calculate RMSE
+print("Root mean square error")
+RMSE(pred_values,test$min.ac50)
+
+#get an idea of which measure is the most important (mean decrease accuracy and mean decrease gini)
+rf.imp <- importance(rf.x)
+rf.imp<-data.frame(rf.imp)
+rf.imp$endpoints <- rownames(rf.imp)
+#Mean decrease accuract (%IncMSE) shows how much the model accuracy decreases if we leave out that variable
+#Mean Decrease Gini (IncNodePurity) - a measure of variable importance based on the Gini impurity index used for the calculating the splits in trees.
+rf.imp$sum<-rf.imp$X.IncMSE +rf.imp$IncNodePurity
+rf.imp<-arrange(rf.imp, desc(sum))
+rf.imp <- rf.imp[,c(3,1,2,4)]
+
+#write.xlsx(rf.imp, "output/RF_regress_min_ac50_imp_07102021.xlsx", overwrite=T)
+varImpPlot(rf.x)
+
+png('figures/Supp_fig5_rf_regress_importance_min_ac50.png',
+    width = 16, 
+    height = 8, 
+    units = "in",
+    res = 300)
+varImpPlot(rf.x)
+dev.off()
+
+```
+
+
+#  6. Selective DNT NAM Activity {.tabset .tabset-pills}
+
+## 6.1 Generate matrix for heatmap
+| Code to create heatmap matrix:
+| 1. Load HCI and NFA mc5 data, filter.
+| 2. Find cytotoxicity AC50 for each assay per sample.
+| 3. Replace the maximum concentration tested (logc_max) with cytotoxicity AC50.
+| 4. Calculate AUC.
+| 5. Merge HCI and NFA data tables.
+| 6. Create legend of 'activity type' and 'DNT in vivo reference' for heatmap.
+
+```{r Matrix for selectivity heatmap, results= "hide", warning=FALSE, message=FALSE}
+#-----------------------------------------------------------------------------------#
+# Matrix for heatmap
+#-----------------------------------------------------------------------------------#
+#Add cytotoxicity threshold for each HCI assay per sample (minimum modl_ga of each cytotoxicity endpoint)
+mc5.hci.hits <- hci.mc5[!is.na(modl_ga),] #563 hits
+#only hits in cyto endpoints in HCI
+hci.mc5[aenm %in% c("MUNDY_HCI_Cortical_NOG_NeuronCount_loss",             
+                    "MUNDY_HCI_Cortical_Synap&Neur_Matur_NeuronCount_loss",
+                    "MUNDY_HCI_hN2_NOG_NeuronCount_loss",                  
+                    "MUNDY_HCI_hNP1_Casp3_7_gain",                         
+                    "MUNDY_HCI_hNP1_CellTiter_loss",                       
+                    "MUNDY_HCI_hNP1_Pro_ObjectCount_loss"),unique(aeid)] #aeid= 2780 2787 2792 2793 2794 2796
+cyto.hits.hci <- mc5.hci.hits[aeid %in% c(2780, 2787, 2792, 2793, 2794, 2796)]
+cyto.hits.hci[, .N, .(aeid)]
+#non-cyto hits
+non.cyto.hits.hci <- mc5.hci.hits[!aeid %in% cyto.hits.hci$aeid,]
+#Cyto AC50 for each HCI assay by spid
+cyto.hits.hci[aeid %in% 2796, cyto.prolif := modl_ga, by="spid"]
+cyto.hits.hci[aeid %in% c(2793,2794), min.cyto.prolif.apop := min(modl_ga), by="spid"]
+cyto.hits.hci[aeid %in% 2792, cyto.NOG.hN2 := modl_ga, by="spid"]
+cyto.hits.hci[aeid %in% 2780, cyto.NOG.rat := modl_ga, by="spid"]
+cyto.hits.hci[aeid %in% 2787, cyto.Synap.rat := modl_ga, by="spid"]
+#mean cyto AC50 by spid
+cyto.hits.hci[, mean.cyto.ac50.hci := mean(modl_ga, na.rm=TRUE), by="spid"]
+#add column for which cyto endpoint defines the minimum cyto by sample
+names(cyto.hits.hci)
+cyto.hits.hci[, hci.cyto.min.all := apply( cyto.hits.hci[,c(81:85)], 1, FUN=min, na.rm=TRUE)]
+cyto.hits.hci[hci.cyto.min.all == modl_ga, aenm.min.cyto.hci := aenm, by="spid"]
+cyto.hits.hci[, .N, .(aenm.min.cyto.hci)]
+#write.xlsx(cyto.hits.hci, "output/HCI_mc5_AC50_min_cyto.xlsx", overwrite=T)
+
+#-----------------------------------------------------------------------------------#
+#exclude '_DIV12' AENM's
+mc5.mea.dev <- mc5.mea.dev[!(grep('DIV12', aenm)),]
+#exclude '_up' AENM's
+mc5.mea.dev <- mc5.mea.dev[!(grep('_up', aenm)),]
+#exclude spid repeats (see Figure 1 .R script)
+exclude <- read.csv("output/excluded_spids_nfa.csv")
+mc5.mea.dev <- mc5.mea.dev[!spid %in% exclude$x,]
+
+#Add cytotoxicity threshold for NFA assay per sample (minimum modl_ga of each cytotoxicity endpoint)
+#only hits in NFA
+mc5.mea.hits <- mc5.mea.dev[!is.na(modl_ga),] #2761 hits 
+#only hits in cyto endpoints in NFA
+mc5.mea.dev[aenm %in% c("CCTE_Shafer_MEA_dev_LDH_dn", "CCTE_Shafer_MEA_dev_AB_dn" ),unique(aeid)] #aeid= 2529,2530
+cyto.hits.mea<- mc5.mea.hits[aeid %in% c(2529,2530),] #Which chems were hits in LDH and/or AB cyto assay
+cyto.hits.mea[, .N, .(aeid)]
+cyto.hits.mea[aeid %in% 2529, LDH_dn := modl_ga, by="spid"]
+cyto.hits.mea[aeid %in% 2529, AB_dn := modl_ga, by="spid"]
+#non-cyto hits
+non.cyto.hits.mea <- mc5.mea.hits[!aeid %in% cyto.hits.mea$aeid,]
+#min cyto AC50 by spid
+cyto.hits.mea[, min.cyto.ac50.mea := min(modl_ga), by="spid"]
+#mean cyto AC50 by spid
+cyto.hits.mea[, mean.cyto.ac50.mea := mean(modl_ga, na.rm=TRUE), by="spid"]
+#add column for which cyto endpoint defines the minimum cyto by sample
+cyto.hits.mea[min.cyto.ac50.mea == modl_ga, aenm.min.cyto.mea := aenm, by="spid"]
+cyto.hits.mea[, .N, .(aenm.min.cyto.mea)]
+#write.xlsx(cyto.hits.mea, "output/NFA_mc5_AC50_min_cyto.xlsx", overwrite=T)
+
+#add stats to mc5
+mc5.mea.dev[,hitsum := sum(hitc, na.rm=TRUE), by="spid"] #hitsum
+mc5.mea.dev$mean.cyto.ac50 <- cyto.hits.mea$mean.cyto.ac50.mea[match(mc5.mea.dev$spid, cyto.hits.mea$spid)] 
+#add mean ac50, exluding cyto
+non.cyto.hits.mea[, mean.ac50.non.cyto := mean(modl_ga, na.rm=TRUE), by="spid"]
+mc5.mea.dev$mean.ac50.non.cyto <- non.cyto.hits.mea$mean.ac50.non.cyto[match(mc5.mea.dev$spid, non.cyto.hits.mea$spid)]
+#add mea cyto endpoints
+mc5.mea.dev$LDH_dn <- cyto.hits.mea$LDH_dn[match(mc5.mea.dev$spid, cyto.hits.mea$spid)]
+mc5.mea.dev$AB_dn <- cyto.hits.mea$AB_dn[match(mc5.mea.dev$spid, cyto.hits.mea$spid)]
+
+names(mc5.mea.dev)
+#MEA summary table (supplemental table 8)
+names(mc5.mea.dev)
+mc5.mea.dev <- mc5.mea.dev[chnm %in% hci.mc5$chnm,] #only chems in HCI
+mea.mc5.summary <- unique(mc5.mea.dev[!is.na(chnm),c('chnm','spid','dsstox_substance_id','hitsum', 'mean.ac50.non.cyto', 'mean.cyto.ac50',
+                                                   'LDH_dn', 'AB_dn')])
+mea.mc5.summary[, cyto.minus.ac50 := mean.cyto.ac50- mean.ac50.non.cyto]
+#write.xlsx(mea.mc5.summary, "output/NFA_ac50_cyto_summary.xlsx", overwrite=T)
+
+#-----------------------------------------------------------------------------------#
+##AUC calcs for HCI
+#add cyto AC50 to mc5 data
+names(cyto.hits.hci)
+hci.mc5$cyto.prolif <- cyto.hits.hci$cyto.prolif[match(hci.mc5$spid, cyto.hits.hci$spid)]
+hci.mc5$min.cyto.prolif.apop <- cyto.hits.hci$min.cyto.prolif.apop[match(hci.mc5$spid, cyto.hits.hci$spid)]
+hci.mc5$cyto.NOG.hN2 <- cyto.hits.hci$cyto.NOG.hN2[match(hci.mc5$spid, cyto.hits.hci$spid)]
+hci.mc5$cyto.NOG.rat<- cyto.hits.hci$cyto.NOG.rat[match(hci.mc5$spid, cyto.hits.hci$spid)]
+hci.mc5$cyto.Synap.rat <- cyto.hits.hci$cyto.Synap.rat[match(hci.mc5$spid, cyto.hits.hci$spid)]
+
+#add stats to mc5
+hci.mc5[,hitsum := sum(hitc, na.rm=TRUE), by="spid"] #hitsum
+hci.mc5$mean.cyto.ac50 <- cyto.hits.hci$mean.cyto.ac50.hci[match(hci.mc5$spid, cyto.hits.hci$spid)] 
+#add mean ac50, exluding cyto
+non.cyto.hits.hci[, mean.ac50.non.cyto := mean(modl_ga), by="spid"]
+hci.mc5$mean.ac50.non.cyto <- non.cyto.hits.hci$mean.ac50.non.cyto[match(hci.mc5$spid, non.cyto.hits.hci$spid)]
+names(hci.mc5)
+
+#HCI summary table (supplemental table 9)
+names(hci.mc5)
+hci.mc5.summary <- unique(hci.mc5[!is.na(chnm),c('chnm','spid','dsstox_substance_id','hitsum', 'mean.ac50.non.cyto', 'mean.cyto.ac50',
+                                                 'cyto.prolif', "min.cyto.prolif.apop", "cyto.NOG.hN2","cyto.NOG.rat", "cyto.Synap.rat"  )])
+hci.mc5.summary[, cyto.minus.ac50 := mean.cyto.ac50- mean.ac50.non.cyto]
+#write.xlsx(hci.mc5.summary, "output/HCI_ac50_cyto_summary.xlsx", overwrite=T)
+
+#set cyto AC50 as logc_max for AUC selectivity calculation for each assay
+#proliferation
+prolif <- hci.mc5[(aeid %in% c(2795,2797,2796))]
+prolif[!is.na(cyto.prolif), logc_max := cyto.prolif, by="spid"]
+#NOG hN2
+NOG.hN2 <- hci.mc5[(aeid %in% c(2789,2790,2791,2792))]
+NOG.hN2[!is.na(cyto.NOG.hN2), logc_max := cyto.NOG.hN2, by="spid"]
+#NOG rat
+NOG.rat <- hci.mc5[(aeid %in% c(2777,2778,2779,2780))]
+NOG.rat[!is.na(cyto.NOG.rat), logc_max := cyto.NOG.rat, by="spid"]
+#Synap rat
+Synap.rat <- hci.mc5[(aeid %in% c(2781,2782,2783,2784,2785,2786,2788,2787))]
+Synap.rat[!is.na(cyto.Synap.rat), logc_max := cyto.Synap.rat, by="spid"]
+
+#rbind new hci.mc5 with logc_max == cyto AC50
+hci.mc5.bind <- rbind(prolif,NOG.hN2,NOG.rat,Synap.rat) #proliferation apoptosis omitted, aeid= 2793,2794
+#check only omit apoptosis endpoints
+omit <- hci.mc5[!m5id %in% hci.mc5.bind$m5id,] 
+hci.mc5 <- hci.mc5.bind
+
+# functions needed to fit
+hill_curve <- function(hill_tp, hill_ga, hill_gw, lconc){
+  return(hill_tp/(1+10^((hill_ga - lconc)*hill_gw)))
+}
+
+gnls_curve <- function(top, ga, gw, la, lw, lconc){
+  gain <- 1/(1+10^((ga - lconc)*gw))
+  loss <- 1/(1+10^((lconc - la)*lw))
+  return(top*gain*loss)
+}
+
+# fit all hitc==1 curves in the hci.mc5
+hci.mc5[use.me ==1L & modl == "hill", 
+        auc := mapply(function(lower, 
+                               upper, 
+                               hill_tp, 
+                               hill_ga, 
+                               hill_gw) integrate(hill_curve, 
+                                                  lower, 
+                                                  upper, 
+                                                  hill_tp=hill_tp, 
+                                                  hill_ga=hill_ga, 
+                                                  hill_gw=hill_gw)$value,
+                      lower = hci.mc5[use.me ==1L & modl == "hill", logc_min], 
+                      upper = hci.mc5[use.me ==1L & modl == "hill", logc_max], 
+                      hill_tp = hci.mc5[use.me ==1L & modl == "hill", hill_tp], 
+                      hill_ga = hci.mc5[use.me ==1L & modl == "hill", hill_ga], 
+                      hill_gw = hci.mc5[use.me ==1L & modl == "hill", hill_gw])]
+
+hci.mc5[hitc == 1L & use.me==1L & modl == "gnls", 
+        auc := mapply(function(lower, 
+                               upper, 
+                               top, 
+                               ga, 
+                               gw, 
+                               la, 
+                               lw) integrate(gnls_curve, 
+                                             lower, 
+                                             upper, 
+                                             top=top, 
+                                             ga=ga, 
+                                             gw=gw, 
+                                             la=la, 
+                                             lw=lw)$value,
+                      lower = hci.mc5[use.me ==1L & modl == "gnls", logc_min], 
+                      upper = hci.mc5[use.me ==1L & modl == "gnls", logc_max], 
+                      top = hci.mc5[use.me ==1L & modl == "gnls", gnls_tp], 
+                      ga = hci.mc5[use.me ==1L & modl == "gnls", gnls_ga], 
+                      gw = hci.mc5[use.me ==1L & modl == "gnls", gnls_gw],
+                      la = hci.mc5[use.me ==1L & modl == "gnls", gnls_la], 
+                      lw = hci.mc5[use.me ==1L & modl == "gnls", gnls_lw])]
+summary(hci.mc5$auc) #min=0.0024, max=333.9
+
+#sum AUC for each chemical
+hci.mc5[,auc.sum.hci := sum(auc, na.rm=T), by= spid]
+#take the log2 of the sum
+hci.mc5[, log2.auc.hci.sum := ifelse(!is.na(auc.sum.hci), log2(auc.sum.hci), NA)]
+#find the 95th percentile
+hci95 <- quantile(hci.mc5$log2.auc.hci.sum, 0.95, na.rm=TRUE)
+#make a scaled AUC by dividing the log2 by the quantile
+hci.mc5[,scaled.auc.hci := ifelse(!is.na(log2.auc.hci.sum), round(log2.auc.hci.sum/hci95, 2), NA)]
+hci.mc5[,scaled.auc.hci := ifelse(is.infinite(scaled.auc.hci), 0, scaled.auc.hci)]
+
+#make summary table (Supplemental Table 9)
+hci.auc.cytoAC50 <- unique(hci.mc5[,c('chnm','spid','auc','scaled.auc.hci')])
+#write.xlsx(hci.auc.cytoAC50, 'output/HCI_sel_AUC.xlsx', overwrite=T)
+
+#-----------------------------------------------------------------------------------#
+#AUC calcs for MEA NFA
+#set cyto AC50 as logc_max for AUC selectivity
+mc5.mea.dev$min.cyto.ac50.mea <- cyto.hits.mea$min.cyto.ac50.mea[match(mc5.mea.dev$spid, cyto.hits.mea$spid)]
+mc5.mea.dev[!is.na(min.cyto.ac50.mea), logc_max := min.cyto.ac50.mea, by="spid"]
+
+# fit all hitc==1 curves in the mc5
+mc5.mea.dev[use.me ==1L & modl == "hill", 
+    auc := mapply(function(lower, 
+                           upper, 
+                           hill_tp, 
+                           hill_ga, 
+                           hill_gw) integrate(hill_curve, 
+                                              lower, 
+                                              upper, 
+                                              hill_tp=hill_tp, 
+                                              hill_ga=hill_ga, 
+                                              hill_gw=hill_gw)$value,
+                  lower = mc5.mea.dev[use.me ==1L & modl == "hill", logc_min], 
+                  upper = mc5.mea.dev[use.me ==1L & modl == "hill", logc_max], 
+                  hill_tp = mc5.mea.dev[use.me ==1L & modl == "hill", hill_tp], 
+                  hill_ga = mc5.mea.dev[use.me ==1L & modl == "hill", hill_ga], 
+                  hill_gw = mc5.mea.dev[use.me ==1L & modl == "hill", hill_gw])]
+
+mc5.mea.dev[hitc == 1L & use.me==1L & modl == "gnls", 
+    auc := mapply(function(lower, 
+                           upper, 
+                           top, 
+                           ga, 
+                           gw, 
+                           la, 
+                           lw) integrate(gnls_curve, 
+                                         lower, 
+                                         upper, 
+                                         top=top, 
+                                         ga=ga, 
+                                         gw=gw, 
+                                         la=la, 
+                                         lw=lw)$value,
+                  lower = mc5.mea.dev[use.me ==1L & modl == "gnls", logc_min], 
+                  upper = mc5.mea.dev[use.me ==1L & modl == "gnls", logc_max], 
+                  top = mc5.mea.dev[use.me ==1L & modl == "gnls", gnls_tp], 
+                  ga = mc5.mea.dev[use.me ==1L & modl == "gnls", gnls_ga], 
+                  gw = mc5.mea.dev[use.me ==1L & modl == "gnls", gnls_gw],
+                  la = mc5.mea.dev[use.me ==1L & modl == "gnls", gnls_la], 
+                  lw = mc5.mea.dev[use.me ==1L & modl == "gnls", gnls_lw])]
+
+summary(mc5.mea.dev$auc) #min=-32.4, max=278.3
+mc5.mea.dev[auc<0, auc :=0] #replace negatives with 0
+
+#sum AUC for each chemical
+mc5.mea.dev[,auc.sum.mea := sum(auc, na.rm=T), by= spid]
+#take the log2 of the sum
+mc5.mea.dev[, log2.auc.mea.sum := ifelse(!is.na(auc.sum.mea), log2(auc.sum.mea), NA)]
+#find the 95th percentile
+mc5.mea.dev[, log2.auc.mea.sum.95 := ifelse(!is.na(log2.auc.mea.sum), quantile(log2.auc.mea.sum, 0.95, na.rm=T), NA)]
+mea95 <- quantile(mc5.mea.dev$log2.auc.mea.sum, 0.95, na.rm=TRUE)
+#make a scaled AUC by dividing the log2 by the quantile
+mc5.mea.dev[,scaled.auc.mea := ifelse(!is.na(log2.auc.mea.sum), round(log2.auc.mea.sum/mea95, 2), NA)]
+mc5.mea.dev[,scaled.auc.mea := ifelse(is.infinite(scaled.auc.mea), 0, scaled.auc.mea)]
+#make summary table
+mea.auc.cytoAC50 <- unique(mc5.mea.dev[,c('chnm','spid','auc','scaled.auc.mea')])
+#write.xlsx(mea.auc.cytoAC50, 'output/NFA_sel_AUC.xlsx', overwrite=T)
+
+#-----------------------------------------------------------------------------------#
+#Create HCI and NFA matrix for heatmap
+
+#HCI data.table
+#exclude cyto endpoints
+hci.mc5 <- hci.mc5[!aeid %in% c(2796,2792,2780,2787)]
+colnames(hci.mc5)
+mat.all.hci <- dcast.data.table(hci.mc5[!(spid %in% c("DMSO/ethanol","Water","Ethanol", "DMSO"))],
+                                chnm + casn + dsstox_substance_id + spid ~ aenm,
+                                value.var = c('auc')
+)
+mat.all.hci[, names := paste0(chnm)]
+mat.all.hci[names=="4-(4-Chlorophenyl)-4-hydroxy-N,N-dimethyl-alpha,alpha-diphenylpiperidine-1-butyramide monohydrochloride", names:= 'Loperamide HCl']
+length(unique(mat.all.hci$names)) # 92 samples for 92 substances
+
+#NFA data.table
+#exclude cyto endpoints
+mc5.mea.dev <- mc5.mea.dev[!aeid %in% c(2529,2530),]
+colnames(mc5.mea.dev)
+mat.all.nfa <- dcast.data.table(mc5.mea.dev[!(spid %in% c("DMSO/Ethanol","Water","Ethanol", "DMSO"))],
+                                chnm + casn + dsstox_substance_id + spid ~ aenm,
+                                value.var = c('auc')
+)
+mat.all.nfa[, names := paste0(chnm)]
+mat.all.nfa[names=="4-(4-Chlorophenyl)-4-hydroxy-N,N-dimethyl-alpha,alpha-diphenylpiperidine-1-butyramide monohydrochloride", names:= 'Loperamide HCl']
+length(unique(mat.all.nfa$names))
+#only compounds tested in HCI
+mat.all.nfa <- mat.all.nfa[casn %in% hci.mc5$casn]
+length(unique(mat.all.nfa$names)) # 92 samples for 92 substances
+
+#Save heatmap AUC data
+#write.csv(mat.all.hci,"output/HCI_sel_AUC_matrix.csv")
+#write.csv(mat.all.nfa,"output/NFA_sel_AUC_matrix.csv")
+
+#-----------------------------------------------------------------------------------#
+#Merge HCI and NFA data.tables
+mat.all <- merge(mat.all.hci, mat.all.nfa, by=c("casn", "chnm", "dsstox_substance_id"))
+names(mat.all)
+setnames(mat.all, c("names.x"), c("names"))
+setnames(mat.all, c("spid.x"), c("spid.HCI"))
+setnames(mat.all, c("spid.y"), c("spid.NFA"))
+mat.all <- mat.all[,c(20:21,1:4,5:19,22:38)]
+
+mat.all.sel <- mat.all[,c(4,3,5,1,6,2,7:38)] #Supp tb10
+
+#Save heatmap matrix of sel AUC data
+#write.xlsx(mat.all, "output/NFA_HCI_sel_AUC_heatmap_matrix.xlsx", overwrite=T)
+
+#replace NA's with 0
+names(mat.all)
+mat.all2 <- mat.all[,lapply(.SD, function(x){ifelse(is.na(x),0,x)}), .SDcol=c(7:38)]
+matrix <- as.matrix(mat.all2)
+rownames(matrix) <- mat.all[,names]
+
+#-----------------------------------------------------------------------------------#
+# Legends for heatmap
+#-----------------------------------------------------------------------------------#
+#create 'activity type'  heatmap legend
+activity.tbl <- as.data.table(colnames(matrix))
+setnames(activity.tbl, c("V1"), c("aenm"))
+activity.tbl.colors <- read.csv("input/Activity_tbl_HCI_NFA_categories_colors.csv")
+activity.tbl$number <- activity.tbl.colors$number[match(activity.tbl$aenm, activity.tbl.colors$aenm)]
+activity.tbl$activity <- activity.tbl.colors$activity[match(activity.tbl$aenm,activity.tbl.colors$aenm)]
+head(activity.tbl)
+
+#create 'DNT in vivo reference' heatmap legend 
+DNT.pos.tbl <- as.data.table(rownames(matrix))
+setnames(DNT.pos.tbl, c("V1"), c("chnm"))
+dnt.pos.neg <- setDT(read.xlsx("input/DNT_evaluation_chems_Mundy_2015.xlsx"))
+str(dnt.pos.neg)
+DNT.pos.tbl$reference <- dnt.pos.neg$is.pos.mundy[match(DNT.pos.tbl$chnm, dnt.pos.neg$names)]
+#set legend colors
+DNT.pos.tbl[reference=="Positive", color := 'black']
+DNT.pos.tbl[reference=="Negative", color := 'dark gray']
+
+```
+
+## 6.2 Generate heatmap
+Heatmap of potency values which includes 92 chemicals (rows), 32 endpoints (columns) with hierarchical clustering (Ward.D2)
+```{r Selectivity heatmap, fig.height=23, fig.width=18}
+#-----------------------------------------------------------------------------------#
+# Heatmap
+#-----------------------------------------------------------------------------------#
+
+heatmap.2(matrix, scale='none', 
+          col=viridis(50, option='A', direction=-1),
+          symbreaks=F,
+          symm=F,
+          symkey=F,
+          #breaks=seq(0,20),
+          trace='none', density.info = 'none',
+          colsep = c(1:91), sepcolor='white', sepwidth=c(0.05,0.05),
+          #rowsep = c(1:5), 
+          hclustfun = function(x) hclust(x, method="ward.D2"),
+          labRow = row.names(matrix),
+          labCol = substr(colnames(matrix),1,91),
+          #labCol = NA,
+          margins = c(30,30),
+          cexRow =1.3,
+          cexCol=1.2,
+          ColSideColors = as.character(activity.tbl$number),
+          RowSideColors = DNT.pos.tbl$color,
+          srtCol=35,
+          keysize=0.8)
+
+legend(
+  xpd=TRUE, x=0.8, y=0.98,
+  title='Activity Type',
+  legend = unique(activity.tbl$activity),
+  col = unique(as.character(activity.tbl$number)), 
+  bty='n',
+  lty= 1,             
+  lwd = 5,           
+  cex=1.5
+)
+
+legend(xpd=TRUE, x=0.8, y=1.04,
+       title='DNT NAM Evaluation Chemicals',
+       legend = unique(DNT.pos.tbl$reference),
+       col = unique(DNT.pos.tbl$color), 
+       bty='n',
+       lty= 1,             
+       lwd = 5,           
+       cex=1.5
+)
+
+#save to file
+file.dir <- paste("./figures/", sep="")
+file.name <- paste("/Fig3_NFA_HCI_AUC_selectivity_zero2_", Sys.Date(), ".png", sep="")
+file.path <- paste(file.dir, file.name, sep="")
+dir.create(path=file.dir, showWarnings = FALSE, recursive = TRUE)
+png(file.path, 
+    width = 15, 
+    height = 21, #change from 8 to 20
+    units = "in",
+    res = 300)
+heatmap.2(matrix, scale='none', 
+          col=viridis(50, option='A', direction=-1),
+          symbreaks=F,
+          symm=F,
+          symkey=F,
+          #breaks=seq(0,20),
+          trace='none', density.info = 'none',
+          colsep = c(1:91), sepcolor='white', sepwidth=c(0.05,0.05),
+          #rowsep = c(1:5), 
+          hclustfun = function(x) hclust(x, method="ward.D2"),
+          labRow = row.names(matrix),
+          labCol = substr(colnames(matrix),1,91),
+          #labCol = NA,
+          margins = c(30,25),
+          cexRow =1.3,
+          cexCol=1.1,
+          ColSideColors = as.character(activity.tbl$number),
+          RowSideColors = DNT.pos.tbl$color,
+          srtCol=35,
+          keysize=0.8)
+
+legend(
+  xpd=TRUE, x=0.8, y=0.98,
+  title='Activity Type',
+  legend = unique(activity.tbl$activity),
+  col = unique(as.character(activity.tbl$number)), 
+  bty='n',
+  lty= 1,             
+  lwd = 5,           
+  cex=1
+)
+
+legend(xpd=TRUE, x=0.8, y=1.04,
+       title='DNT NAM Evaluation Chemicals',
+       legend = unique(DNT.pos.tbl$reference),
+       col = unique(DNT.pos.tbl$color), 
+       bty='n',
+       lty= 1,             
+       lwd = 5,           
+       cex=1
+)
+
+
+dev.off()
+
+```
+
+## 6.3 k-means clustering: Elbow plot 
+
+```{r Elbow plot for selectivity data, fig.height=8, fig.width=7}
+#-----------------------------------------------------------------------------------#
+# Elbow plot
+#-----------------------------------------------------------------------------------#
+set.seed(30)
+wss <- (nrow(matrix)-1)*sum(apply(matrix,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(matrix,
+                                     centers=i)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares")
+
+#save plot
+png(file="figures/Supp_fig6b_kmeans_elbow_plot_07052021.png", width=6, height=8, units = "in",
+    res = 300)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares")
+dev.off()
+```
+## 6.4 Distance Matrix
+
+```{r Distance Matrix for selectivity data, fig.height=15, fig.width=15}
+#-----------------------------------------------------------------------------------#
+# Distance matrix
+#-----------------------------------------------------------------------------------#
+#distance matrix
+df <- as.data.frame(matrix)
+distance <- get_dist(df)
+fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+
+#save plot
+png(file="figures/Supp_fig6c_distance_matrix_07052021.png", width=15, height=15, units = "in",
+    res = 300)
+fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+dev.off()
+
+```
+
+## 6.5 k-means clustering: PCA plots 
+
+```{r PCA plots for selectivity data, fig.height=15, fig.width=15}
+#-----------------------------------------------------------------------------------#
+# PCA plots of k-means
+#-----------------------------------------------------------------------------------#
+#Visualize k-means with PCA plots that explain the majority of the variance.
+set.seed(30)
+k3 <- kmeans(matrix, centers=3, nstart=25) #centers=4 based on elbow plot
+k4 <- kmeans(matrix, centers = 4, nstart = 25)
+k5 <- kmeans(matrix, centers = 5, nstart = 25)
+k6 <- kmeans(matrix, centers = 6, nstart = 25)
+# plots to compare
+p1 <- fviz_cluster(k3, geom = "point", data = matrix) + ggtitle("k = 3") 
+p2 <- fviz_cluster(k4, geom = "point",  data = matrix) + ggtitle("k = 4")
+p3 <- fviz_cluster(k5, geom = "point",  data = matrix) + ggtitle("k = 5")
+p4 <- fviz_cluster(k6, geom = "point",  data = matrix) + ggtitle("k = 6")
+
+grid.arrange(p1, p2, p3, p4, nrow = 2) #k=6 appears to be optimal OR, excluding colchicine, 5 groups 
+
+#save plot
+png(file="figures/Supp_fig6d_kmeans_fviz_kof4to7_07052021.png", width=15, height=10, units = "in",
+    res = 300)
+grid.arrange(p1, p2, p3, p4, nrow = 2) #k=5 appears to be optimal OR, excluding colchicine, 4 groups 
+dev.off()
+
+#plot best fit with chemicals
+fviz_cluster(k6, data=matrix, labelsize=13) +
+  theme(axis.title = element_text(size = 14),
+        axis.text = element_text(size = 14))
+
+#save plot
+png(file="figures/Supp_fig6e_kmeans_fviz_kof5_chems_07052021.png", width=15, height=12, units = "in",
+    res = 300)
+fviz_cluster(k5, data=matrix, labelsize=13) +
+  theme(axis.title = element_text(size = 14),
+        axis.text = element_text(size = 14))
+dev.off()
+
+```
+
+
+
+
+# 7. IVIVE {.tabset .tabset-pills}
+
+## Load data and create data frame to plot administered equivalent dose (AED) versus in vivo lowest effect dose
+| Code to perform IVIVE using httk R package:
+| 1. Load in vivo data on false negative chemicals, scraped from the Mundy et al., 2015 publication. 
+| 2. Load httk information for false negatives using 'chem.physical_and_invitro.data' in 'httk' R package. 
+| 3. Compute administered equivalent dose (AED) using the 3 compartment model and species=human with function 'calc_mc_oral_equiv' in 'httk' R package.
+| 4. Compute human equivalent dose (HED) of in vivo lowest effect doses using allometric scaling (Nair and Jacob, 2016).
+| 5. Prepare long format data table for plot.
+
+```{r false negative for IVIVE, results= "hide", warning=FALSE, message=FALSE}
+library(httk)
+load_sipes2017()
+# load in information needed
+fn.list <- as.data.table(read.xlsx("input/DNT_false_negative_in_vivo_Mundy_2015.xlsx")) #DNT evaluation chemicals
+load('./source/HCI_13Apr2020.RData') 
+load(file='./source/ccte_mea_dev_data_12nov2020_manuscript.RData')
+
+#httk info
+httk.chem.tbl <- as.data.table(chem.physical_and_invitro.data)
+httk.fn.tbl <- httk.chem.tbl[DTXSID %in% fn.list[,DTXSID]] #only chems in false negative list
+httk.fn.tbl <- httk.fn.tbl[!is.na(DTXSID),]
+
+httk.info <- httk.fn.tbl[,c('Compound',"CAS",'DTXSID','logP','pKa_Accept','pKa_Donor',
+                            'Human.Clint','Human.Clint.Reference', 'Human.Funbound.plasma',
+                            'Human.Funbound.plasma.Reference')]
+fn.info <- fn.list[,c('DTXSID','Reference.from.Mundy.2015','LEL.mg.kg','Dose_unit','Route','Days','Duration','Species','Km.ratio*')]
+
+httk.info.tbl <- merge(httk.info, fn.info, by='DTXSID', all.x=TRUE) #Supp Table3
+
+#takeout DIV12
+mc5 <- mc5.mea.dev[!(grep('DIV12', aenm)),]
+
+hci.fn <- hci.mc5[dsstox_substance_id %in% fn.list$DTXSID,]
+hci.fn <- hci.fn[!is.na(dsstox_substance_id),]
+hci.fn <- hci.fn[,c("chnm", "dsstox_substance_id","casn", "spid",
+                    "aeid", "aenm", "logc_max", "hitc" ,  "modl_ga" , "use.me" )]
+
+mea.fn <- mc5[dsstox_substance_id %in% fn.list$DTXSID,]
+mea.fn <- mea.fn[!is.na(dsstox_substance_id),]
+mea.fn <- mea.fn[,c("chnm", "dsstox_substance_id","casn","spid",
+                    "aeid", "aenm", "logc_max", "hitc" ,  "modl_ga" , "use.me" )]
+dnt.fn.ac50 <- as.data.table(rbind(hci.fn, mea.fn))
+dnt.fn.ac50 <- dnt.fn.ac50[, logc_max_all := max(logc_max), by="chnm"]
+
+#----------------------------------------------------------------------------#
+# Human comparison
+#----------------------------------------------------------------------------#
+httk.fn.tbl[is.na(Human.Clint)] 
+fn.com <- dnt.fn.ac50
+fn.com.pos <- fn.com[hitc==1 & use.me==1]
+fn.com.pos[hitc == 1, modl.ga.uM := ifelse(!is.na(modl_ga), 10^modl_ga, NA)]
+fn.com.pos[, max.conc.uM := ifelse(!is.na(logc_max_all), 10^logc_max_all, NA)]
+
+setnames(fn.com.pos, c('dsstox_substance_id'), c('DTXSID'))
+
+httk.human.3css.df=data.frame()
+for (i in 1:nrow (fn.com.pos))
+{
+  aed.human.3css.50 <-(calc_mc_oral_equiv(conc=fn.com.pos$modl.ga.uM[i], 
+                                          chem.cas=fn.com.pos$casn[i], 
+                                          which.quantile=c(0.50), 
+                                          species='Human',
+                                          restrictive.clearance=T, 
+                                          output.units='mgpkgpday',
+                                          model='3compartmentss'))
+  aed.human.3css.95 <-(calc_mc_oral_equiv(conc=fn.com.pos$modl.ga.uM[i], 
+                                          chem.cas=fn.com.pos$casn[i], 
+                                          which.quantile=c(0.95), 
+                                          species='Human',
+                                          restrictive.clearance=T, 
+                                          output.units='mgpkgpday',
+                                          model='3compartmentss'))
+  aed.max.human.3css.50 <-(calc_mc_oral_equiv(conc=fn.com.pos$max.conc.uM[i], 
+                                              chem.cas=fn.com.pos$casn[i], 
+                                              which.quantile=c(0.50), 
+                                              species='Human',
+                                              restrictive.clearance=T, 
+                                              output.units='mgpkgpday',
+                                              model='3compartmentss'))  
+  
+  httk.human.3css.df<-rbind(httk.human.3css.df,
+                            cbind(fn.com.pos$aeid[i],
+                                  fn.com.pos$DTXSID[i], 
+                                  fn.com.pos$spid[i],
+                                  fn.com.pos$modl.ga.uM[i], 
+                                  fn.com.pos$casn[i],
+                                  aed.human.3css.50,
+                                  aed.human.3css.95,
+                                  aed.max.human.3css.50))
+}
+#save(httk.human.3css.df, file='./source/human_3compss_aed_data_07June2021.RData')
+
+#summary data table
+httk.human.3css.dt <- as.data.table(httk.human.3css.df)
+setnames(httk.human.3css.dt,
+         c('V1','V2','V3','V4','V5'),
+         c('aeid','DTXSID','spid','modl.ga.uM','casn'))
+str(httk.human.3css.dt)
+col.num <- c('aeid', 'modl.ga.uM', 'aed.human.3css.50', 'aed.human.3css.95', 'aed.max.human.3css.50')
+httk.human.3css.dt[, (col.num) := lapply (.SD, as.character), .SDcols = col.num ]
+httk.human.3css.dt[, (col.num) := lapply (.SD, as.numeric), .SDcols = col.num ]
+
+col.chr <- c('DTXSID','spid','casn')
+httk.human.3css.dt[, (col.chr) := lapply (.SD, as.character), .SDcols = col.chr ]
+httk.human.3css.dt[, (col.chr) := lapply (.SD, as.character), .SDcols = col.chr ]
+
+fn.com.pos[,key := paste0(aeid,'_',DTXSID,'_',spid,'_',modl.ga.uM, '_', casn)]
+httk.human.3css.dt[,key := paste0(aeid,'_',DTXSID,'_',spid,'_',modl.ga.uM, '_', casn)]
+
+fn.com.pos$aed.human.3css.50 <- httk.human.3css.dt$aed.human.3css.50[match(fn.com.pos$key,
+                                                                           httk.human.3css.dt$key)]
+fn.com.pos$aed.human.3css.95 <- httk.human.3css.dt$aed.human.3css.95[match(fn.com.pos$key,
+                                                                           httk.human.3css.dt$key)]
+fn.com.pos$aed.max.human.3css.50 <- httk.human.3css.dt$aed.max.human.3css.50[match(fn.com.pos$key,
+                                                                                   httk.human.3css.dt$key)]
+
+fn.com.pos.supp.tb <- fn.com.pos
+
+#Prep data for plot
+names(fn.list)
+#Log10 all values
+fn.com.pos$LEL.mg.kg <- fn.list$LEL.mg.kg[match(fn.com.pos$DTXSID,fn.list$DTXSID)]
+fn.com.pos$log.LEL.mg.kg <- log10(fn.com.pos$LEL.mg.kg)
+fn.com.pos$aed.human.3css.50.log <- log10(fn.com.pos$aed.human.3css.50)
+fn.com.pos$aed.human.3css.95.log <- log10(fn.com.pos$aed.human.3css.95)
+fn.com.pos$aed.max.human.3css.50.log <- log10(fn.com.pos$aed.max.human.3css.50)
+fn.com.pos <- fn.com.pos[, max.human.aed := max(aed.human.3css.50), by=chnm]
+str(fn.com.pos)
+
+#HED: convert LOAEL to HED (human equivalent dose, using Km and equation from Nair and Jacob 2016 J Basic and Clinical Pharmacology)
+names(fn.list)
+fn.com.pos$Km <- fn.list$`Km.ratio*`[match(fn.com.pos$DTXSID,fn.list$DTXSID)]
+fn.com.pos$HED <- fn.com.pos$LEL.mg.kg/fn.com.pos$Km #mg/kg units
+fn.com.pos$log.HED.mg.kg <- log10(fn.com.pos$HED) #log10
+fn.com.pos$route <- fn.list$Route[match(fn.com.pos$DTXSID,fn.list$DTXSID)]
+fn.com.pos$days <- fn.list$Days[match(fn.com.pos$DTXSID,fn.list$DTXSID)]
+fn.com.pos$species <- fn.list$Species[match(fn.com.pos$DTXSID,fn.list$DTXSID)]
+names(fn.com.pos)
+
+#write.xlsx(fn.com.pos, "output/fals_neg_aed_human_50_95.xlsx", overwrite=T)
+
+#Add filters for plot 
+fn.com.pos <- fn.com.pos[!is.na(aed.human.3css.50),] #exclude NA's
+fn.com.pos[, aed.max.conc.test.3css.50.log := max(aed.max.human.3css.50.log), by="chnm"] #find max concentration tested
+fn.com.pos[, reference := "False negatives"] #add reference (false negative or true positive)
+true.pos <- c("Fluoxetine hydrochloride", "Deltamethrin", "Methylmercuric(II) chloride", "Bisphenol A")
+fn.com.pos[ chnm %in% true.pos, reference := "True positives"]
+
+#melt table
+fn.com.pos.long <- melt.data.table(fn.com.pos, id.vars = c('chnm', 
+                                                           'casn',
+                                                           'DTXSID',
+                                                           'reference'),
+                                   #'hitc', 
+                                   measure.vars = c('aed.human.3css.50.log',
+                                                    'aed.human.3css.95.log',
+                                                    'aed.max.conc.test.3css.50.log', 
+                                                    'log.LEL.mg.kg',
+                                                    'log.HED.mg.kg'),
+                                                   
+                                   variable.name = 'Comparator')
+fn.com.pos.long <- unique(fn.com.pos.long)
+
+```
+## IVIVE PLOT
+```{r AED plot, fig.height=15, fig.width=20}
+# viridis colors manually selected, log version
+
+# viridis colors manually selected, log version
+fn.com.plot <- ggplot(data=fn.com.pos, aes(x=reorder(factor(chnm), log.HED.mg.kg), y=aed.human.3css.50.log))+
+  geom_boxplot(outlier.shape=NA,
+               color="#95D840FF",
+               fill="#95D840FF",
+               alpha=0.2,
+               width=0.3)+
+  geom_jitter(data = fn.com.pos.long, 
+              width=0.04,
+              aes(x = factor(chnm), 
+                 y = value, shape = factor(Comparator), color = factor(Comparator), size =factor(Comparator))) +
+  scale_color_manual(values=c("#95D840FF","grey87", "#56B4E9","#481567FF",  "lightcoral"),
+                     breaks=c('aed.human.3css.50.log', 'aed.human.3css.95.log','aed.max.conc.test.3css.50.log','log.HED.mg.kg' , 'log.LEL.mg.kg' ),
+                     labels=c("in vitro AED (human)", "in vitro AED (95th percentile human)", "in vitro max tested AED (human)","in vivo HED", "in vivo dose (rodent)"))+
+  scale_shape_manual(values=c(16,15,10,17,17),
+                     breaks=c('aed.human.3css.50.log', 'aed.human.3css.95.log', 'aed.max.conc.test.3css.50.log', 'log.HED.mg.kg' , 'log.LEL.mg.kg' ),
+                     labels=c("in vitro AED (human)", "in vitro AED (95th percentile human)", "in vitro max tested AED (human)", "in vivo HED", "in vivo dose (rodent)"))+
+  scale_size_manual(values=c(3,3,5.7,4,4),
+                     breaks=c('aed.human.3css.50.log', 'aed.human.3css.95.log', 'aed.max.conc.test.3css.50.log', 'log.LEL.mg.kg', 'log.HED.mg.kg' ),
+                     labels=c("in vitro AED (human)", "in vitro AED (95th percentile human)", "in vitro max tested AED (human)", "in vivo HED", "in vivo dose (rodent)"))+
+  #xlab('Chemical')+
+  ylab('log10(mg/kg/day)')+
+  theme_bw() +
+  theme(text = element_text(size=20),
+        legend.position="top",
+        legend.title = element_blank(),
+        axis.title.y=element_blank())+
+  #scale_y_continuous(breaks=seq(0,500,50))+
+  facet_wrap(~reference,
+             scales= "free_y",
+             dir="v")+
+  coord_flip(ylim=c(-5,5)) 
+fn.com.plot
+
+file.dir <- paste("./figures/", sep="")
+file.name <- paste("/Fig4_Fig_AED_HED_fn_tp_", Sys.Date(), ".png", sep="")
+file.path <- paste(file.dir, file.name, sep="")
+dir.create(path=file.dir, showWarnings = FALSE, recursive = TRUE)
+png(file.path, width = 16, height = 12, unit='in',res = 600)
+fn.com.plot
+dev.off()
+```
+
+
+
+
+# 8. Comparison to ToxCast/Tox21 {.tabset .tabset-pills}
+
+## Load data from ToxCast/Tox21 and DNT data (NFA/HCI) 
+| Code to compare results to general ToxCast/Tox21 data in database invitrodb:
+| 1. Load all mc5 data from invitrodb, including cytotoxicty burst table.
+| 2. Filter mc5 data with coarse filter, including mc6 flags. 
+| 3. Calculate 5th %-ile AC50 for each chemical of interest (modl_ga_fifth).
+| 4. Calculate hit-rate (number of active endpoint hits/ total number of endpoints tested.)
+
+```{r ToxCast data, results= "hide", warning=FALSE, message=FALSE}
+
+#Load DNT (NFA and HCI) data
+load(file='./source/ccte_mea_dev_data_12nov2020_manuscript.RData')
+load(file='./source/HCI_13Apr2020.RData')
+
+#Load ToxCast/Tox21 data
+load(file='./source/mc5_burst_stg_invitro.RData') #mc5, mc6, burst
+# filter the dataset, with coarse filters
+setDT(mc6)
+mc6_mthds <- mc6[ , .( mc6_mthd_id = paste(mc6_mthd_id, collapse=",")), by = m4id]
+mc6_flags <- mc6[ , .( flag = paste(flag, collapse=";")), by = m4id]
+mc5$mc6_flags <- mc6_mthds$mc6_mthd_id[match(mc5$m4id, mc6_mthds$m4id)]
+mc5[, flag.length := ifelse(!is.na(mc6_flags), count.fields(textConnection(mc6_flags), sep =','), NA)]
+mc5[hitc==1 & flag.length < 3, use.me := 1]
+mc5[hitc==1 & is.na(flag.length), use.me := 1]
+mc5[hitc==1 & flag.length >= 3, use.me := 0]
+mc5[fitc %in% c(36,45), use.me := 0]
+mc5[hitc==-1, use.me := 0] # make hitc interpretable as a positive sum
+mc5[use.me==0, modl_ga := as.numeric(NA)]
+mc5[use.me==0, hitc := 0]
+mc5[hitc==0, modl_ga := as.numeric(NA)]
+
+#exclude DIV12 and low activity replicates
+mc5.mea.dev <- mc5.mea.dev[!(grep('DIV12', aenm)),]
+exclude <- read.csv("output/excluded_spids_nfa.csv")
+mc5.mea.dev <- mc5.mea.dev[!spid %in% exclude$x,]
+
+#only NFA chems testsed in HCI
+mc5.mea.dev <- mc5.mea.dev[dsstox_substance_id %in% hci.mc5$dsstox_substance_id,]
+
+#rbind mea and hci into data table
+mea.df <- mc5.mea.dev[!is.na(dsstox_substance_id), c("chnm", "dsstox_substance_id","casn","spid", "m5id",
+                    "aeid", "aenm", "logc_max", "hitc" , "modl_ga" , "use.me" )]
+hci.df <- hci.mc5[!is.na(dsstox_substance_id),c("chnm", "dsstox_substance_id","casn", "spid","m5id",
+                     "aeid", "aenm", "logc_max", "hitc" , "modl_ga" , "use.me" )]
+dnt.df <- as.data.table(rbind(hci.df, mea.df))
+length(unique(dnt.df$dsstox_substance_id)) #92 chems
+
+#make data.table of aeid/aenm for each dnt asasy
+aenm.tbl <- unique(dnt.df[,c("aeid","aenm")])
+aenm.tbl[aeid %in% c(2777:2780), assay := 'NOG initiation, rat']
+aenm.tbl[aeid %in% c(2781:2788), assay := 'Synaptogenesis/maturation, rat']
+aenm.tbl[aeid %in% c(2789:2792), assay := 'NOG initiation, hN2']
+aenm.tbl[aeid %in% c(2793:2794), assay := 'Apoptosis/viability, hNP1']
+aenm.tbl[aeid %in% c(2795:2797), assay := 'Proliferation, hNP1']
+aenm.tbl[aeid %in% c(2494:2501), assay := 'General']
+aenm.tbl[aeid %in% c(2502:2509), assay := 'Bursting']
+aenm.tbl[aeid %in% c(2510:2527), assay := 'Network Connectivity']
+aenm.tbl[aeid %in% c(2529:2530), assay := 'MEA Cytotoxicity']
+aenm.tbl[aeid %in% c(2529:2530,2780,2787,2792,2796, 2793:2794), is.cyto := 'Cytotoxicity']
+aenm.tbl[aeid %in% c(2529:2530), cyto.assay := 'MEA Cytotoxicity']
+aenm.tbl[aeid %in% c(2780), cyto.assay := 'NOG rat Cytotoxicity']
+aenm.tbl[aeid %in% c(2787), cyto.assay := 'Synaptogenesis rat Cytotoxicity']
+aenm.tbl[aeid %in% c(2792), cyto.assay := 'NOG hN2 Cytotoxicity']
+aenm.tbl[aeid %in% c(2796), cyto.assay := 'Proliferation hNP1 Cytotoxicity']
+aenm.tbl[aeid %in% c(2793:2794), cyto.assay := 'Apoptosis/viability, hNP1']
+
+#add assay column to dnt.df
+dnt.df$assay <- aenm.tbl$assay[match(dnt.df$aeid,aenm.tbl$aeid)]
+dnt.df$cyto.assay <- aenm.tbl$cyto.assay[match(dnt.df$aeid,aenm.tbl$aeid)]
+
+#match toxcast with dnt.df
+burst.dnt<- burst[dsstox_substance_id %in% dnt.df$dsstox_substance_id,]
+mc5.tox <- mc5[dsstox_substance_id %in% dnt.df$dsstox_substance_id,]
+dnt.df$cytotox_lower_bound_log <- burst.dnt$cytotox_lower_bound_log[match(dnt.df$dsstox_substance_id,
+                                                                               burst.dnt$dsstox_substance_id)]
+mc5.tox$cytotox_lower_bound_log <- burst.dnt$cytotox_lower_bound_log[match(mc5.tox$dsstox_substance_id,
+                                                                           burst.dnt$dsstox_substance_id)]
+dnt.df[, min.dnt.potency := min(modl_ga, na.rm=TRUE), by=dsstox_substance_id]
+dnt.df[, min.dnt.potency := ifelse(is.infinite(min.dnt.potency), 3, min.dnt.potency)]
+
+dnt.df[!is.na(cyto.assay), modl_ga_cyto := modl_ga,]
+dnt.df[, min.dnt.cyto.potency := min(modl_ga_cyto, na.rm=TRUE), by=dsstox_substance_id]
+dnt.df[, min.dnt.cyto.potency := ifelse(is.infinite(min.dnt.cyto.potency), 3, min.dnt.cyto.potency)]
+
+mc5.tox[,min.toxcast.potency := min(modl_ga, na.rm=TRUE), by=chid]
+mc5.tox[, modl_ga_fifth := quantile(modl_ga, probs=c(0.05), na.rm=TRUE), by=list(chid)]
+
+mc5.tox$min.dnt.potency <- dnt.df$min.dnt.potency[match(mc5.tox$dsstox_substance_id, dnt.df$dsstox_substance_id)]
+mc5.tox$min.dnt.cyto.potency <- dnt.df$min.dnt.cyto.potency[match(mc5.tox$dsstox_substance_id, dnt.df$dsstox_substance_id)]
+
+# calc hitrates and assays screened
+hit.rates <- mc5.tox[ , list(
+  total.assay.screened  = .N, #total number of aeids tested in mc
+  active.assay.count  = as.double(lw(hitc==1)),  # active count
+  inactive.assay.count  = as.double(lw(hitc==0)),  #inactive count
+  active.percent = round((lw(hitc==1)/.N)*100,2), #active percent
+  inactive.percent = round((lw(hitc==0)/.N)*100,2) #inactive percent
+), by = list(chid, chnm, casn, dsstox_substance_id)]
+
+mc5.tox$hitrate <- hit.rates$active.percent[match(mc5.tox$casn,hit.rates$casn)]
+mc5.tox$active.assay.count <- hit.rates$active.assay.count[match(mc5.tox$casn,hit.rates$casn)]
+mc5.tox$total.assay.screened <- hit.rates$total.assay.screened[match(mc5.tox$casn,hit.rates$casn)]
+
+mc5.tox$burst.hit <- burst$nhit[match(mc5.tox$casn,burst$casn)]
+mc5.tox$burst.tested <- burst$ntested[match(mc5.tox$casn,burst$casn)]
+
+#loperamide
+dnt.df <- dnt.df[chnm=="4-(4-Chlorophenyl)-4-hydroxy-N,N-dimethyl-alpha,alpha-diphenylpiperidine-1-butyramide monohydrochloride", chnm := 'Loperamide HCl']
+mc5.tox <- mc5.tox[chnm=="4-(4-Chlorophenyl)-4-hydroxy-N,N-dimethyl-alpha,alpha-diphenylpiperidine-1-butyramide monohydrochloride", chnm := 'Loperamide HCl']
+```
+
+## Plot: Most cytotoxic chemicals in the DNT NAM battery compared to ToxCast burst 
+Boxplots indicate the spread of DNT NAM AC50 values and the fraction indicates 'positive hits/total tested endpoints in the DNT NAMs.'
+
+```{r High DNT cyto, results= "hide", warning=FALSE, message=FALSE, fig.height=8, fig.width=8}
+#which chems >=3 cytotoxicity hits (out of 8 cytotoxicity endpoints)
+dnt.df.cyto <- dnt.df[hitc==1 & !is.na(cyto.assay),] #only cyto hits
+unique(dnt.df.cyto$aenm)
+dnt.df.cyto[,cyto.hitsum := sum(hitc), by="spid"]
+dnt.df.cyto[,cyto.hitsum.3.greater := ifelse(cyto.hitsum>=3,1,0)]
+high.dnt.cyto.chems <- unique(dnt.df.cyto[cyto.hitsum.3.greater==1,dsstox_substance_id])
+
+#only chems that were high cytotoxicity in DNT battery
+dnt.df.high.cyto.only <- dnt.df[dsstox_substance_id %in% high.dnt.cyto.chems,]
+#only for chems available in burst data
+dnt.df.high.cyto.only <- dnt.df.high.cyto.only[dsstox_substance_id %in% burst$dsstox_substance_id,]
+dnt.df2 <- dnt.df.high.cyto.only
+
+names(mc5.tox)
+mc5.tox2 <- mc5.tox[dsstox_substance_id %in% dnt.df2$dsstox_substance_id,]
+#which chnm have a min.dnt.cyto.potency that are left-shifted by 1 log10-um from 5th percentile toxcast
+mc5.tox2[,cyto.diff := modl_ga_fifth- min.dnt.cyto.potency, ]
+mc5.tox2[,cyto.dnt.more.pot := ifelse(cyto.diff>1,1,0), ]
+unique(mc5.tox2[cyto.dnt.more.pot==1, chnm])
+
+#plot
+mc5.tox.long <- melt.data.table(mc5.tox2, id.vars = c('chnm', 
+                                                     'casn',
+                                                     'dsstox_substance_id',
+                                                     'hitrate',
+                                                     'burst.hit',
+                                                     'burst.tested'), 
+                                measure.vars = c('modl_ga_fifth',
+                                                 'min.dnt.cyto.potency',
+                                                 'cytotox_lower_bound_log'),
+                                variable.name = 'Comparator')
+
+mc5.dnt <- ggplot(data=dnt.df2, aes(x=reorder(factor(chnm), min.dnt.cyto.potency), y=modl_ga))+
+  geom_boxplot(outlier.shape=NA)+
+  geom_point(data = mc5.tox.long, 
+             aes(x = factor(chnm), 
+                 y = value, shape = factor(Comparator), color = factor(Comparator)), size = 4) +
+  scale_color_manual(values=c("azure3","#481567FF","#95D840FF"),
+                     breaks=c("modl_ga_fifth", "min.dnt.cyto.potency", "cytotox_lower_bound_log"),
+                     labels=c("5th-%ile ToxCast AC50", "Min DNT Cyto AC50", "Burst"))+
+  scale_shape_manual(values=c(16,15,17),
+                     breaks=c("modl_ga_fifth", "min.dnt.cyto.potency", "cytotox_lower_bound_log"),
+                     labels=c("5th-%ile ToxCast AC50", "Min DNT Cyto AC50", "Burst"))+
+  xlab('Chemical')+
+  ylab('log10 micromolar value')+
+  theme_bw() +
+  geom_text(data=mc5.tox.long, 
+            aes(x=chnm, 
+                y= 5, 
+                label=paste(burst.hit, "/", burst.tested),
+                group=`chnm`),  size=3,
+            position = position_dodge(1))+
+  theme(axis.text.y= element_text(size=12),
+        legend.position="top",
+        legend.title = element_blank())+
+  scale_y_continuous(breaks=seq(-6,6,1))+
+  coord_flip(ylim=c(-7,7))
+mc5.dnt
+file.dir <- paste("./figures/", sep="")
+file.name <- paste("/Fig6a_DNT_cyto_ToxCast_burst_", Sys.Date(), ".png", sep="")
+file.path <- paste(file.dir, file.name, sep="")
+dir.create(path=file.dir, showWarnings = FALSE, recursive = TRUE)
+png(file.path, width = 7, height = 8, unit='in',res = 600)
+mc5.dnt
+dev.off()
+```
+
+## Plot: Chemicals with the most selective DNT NAM activity compared to ToxCast
+Boxplots indicate the spread of ToxCast/Tox21 AC50 values and the fraction indicates 'positive hits/total tested endpoints in ToxCast/Tox21'.
+```{r DNT selective ac50 versus ToxCast plot, results= "hide", warning=FALSE, message=FALSE, fig.height=12, fig.width=8}
+#--------Find min 'selective' AC50 for each compound. Selective AC50= AC50 below cyto AC50 for each assay--------#
+
+#add cyto AC50 for each assay (calculated in section 6.1)
+names(cyto.hits.mea)
+dnt.df$min.cyto.ac50.mea <- cyto.hits.mea$min.cyto.ac50.mea[match(dnt.df$spid,cyto.hits.mea$spid)]
+names(cyto.hits.hci)
+dnt.df$cyto.ac50.prolif <- cyto.hits.hci$cyto.prolif[match(dnt.df$spid,cyto.hits.hci$spid)]
+dnt.df$cyto.ac50.NOG.hN2 <- cyto.hits.hci$cyto.NOG.hN2[match(dnt.df$spid,cyto.hits.hci$spid)]
+dnt.df$cyto.ac50.NOG.rat <- cyto.hits.hci$cyto.NOG.rat[match(dnt.df$spid,cyto.hits.hci$spid)]
+dnt.df$cyto.ac50.Synap.rat <- cyto.hits.hci$cyto.Synap.rat[match(dnt.df$spid,cyto.hits.hci$spid)]
+#filter for AC50 below cyto AC50
+dnt.df[, modl_ga_sel := modl_ga]
+dnt.df[!is.na(cyto.assay), modl_ga_sel := NA]
+dnt.df[grep("CCT_Shafer",aenm), modl_ga_sel := ifelse(modl_ga_sel> min.cyto.ac50.mea, 4, modl_ga_sel), by="spid"]
+dnt.df[aeid %in% c(2795,2797,2796), modl_ga_sel := ifelse(modl_ga_sel> cyto.ac50.prolif, 4, modl_ga_sel), by="spid"]
+dnt.df[aeid %in% c(2789,2790,2791,2792), modl_ga_sel := ifelse(modl_ga_sel> cyto.ac50.NOG.hN2, 4, modl_ga_sel), by="spid"]
+dnt.df[aeid %in% c(2777,2778,2779,2780), modl_ga_sel := ifelse(modl_ga_sel> cyto.ac50.NOG.rat, 4, modl_ga_sel), by="spid"]
+dnt.df[aeid %in% c(2781,2782,2783,2784,2785,2786,2788,2787), modl_ga_sel := ifelse(modl_ga_sel> cyto.ac50.Synap.rat, 4, modl_ga_sel), by="spid"]
+#find min sel AC50
+dnt.df[, min.ac50.sel := min(modl_ga_sel, na.rm=TRUE), by=dsstox_substance_id]
+dnt.df[, min.ac50.sel := ifelse(is.infinite(min.ac50.sel), NA, min.ac50.sel)]
+dnt.df[, min.ac50.sel.fifth := quantile(modl_ga_sel, probs=c(0.05), na.rm=TRUE), by=dsstox_substance_id]
+
+#only chems with selective ac50
+dnt.df2 <- dnt.df[!is.na(min.ac50.sel.fifth),]
+
+mc5.tox2 <- mc5.tox[dsstox_substance_id %in% dnt.df2$dsstox_substance_id,]
+mc5.tox2$min.ac50.sel <- dnt.df2$min.ac50.sel[match(mc5.tox2$dsstox_substance_id, dnt.df2$dsstox_substance_id)]
+mc5.tox2$min.ac50.sel.fifth <- dnt.df2$min.ac50.sel.fifth[match(mc5.tox2$dsstox_substance_id, dnt.df2$dsstox_substance_id)]
+
+#which chnm have a min.ac50.sel.fifth that are left-shifted by 1 log10-um from 5th percentile toxcast
+mc5.tox2[,sel.diff := modl_ga_fifth- min.ac50.sel.fifth, ]
+mc5.tox2[,sel.dnt.more.pot := ifelse(sel.diff>1,1,0), ]
+unique(mc5.tox2[sel.dnt.more.pot==1, chnm])
+
+#plot
+mc5.tox.long <- melt.data.table(mc5.tox2, id.vars = c('chnm', 
+                                                     'casn',
+                                                     'dsstox_substance_id',
+                                                     'active.assay.count',
+                                                     'total.assay.screened',
+                                                     'burst.tested'), 
+                                measure.vars = c('modl_ga_fifth',
+                                                 'min.ac50.sel.fifth',
+                                                 'cytotox_lower_bound_log'),
+                                variable.name = 'Comparator')
+
+
+
+mc5.dnt <- ggplot(data=mc5.tox2, aes(x=reorder(factor(chnm), min.ac50.sel.fifth), y=modl_ga))+
+  geom_boxplot(outlier.shape=NA)+
+  geom_point(data = mc5.tox.long, 
+             aes(x = factor(chnm), 
+                 y = value, shape = factor(Comparator), color = factor(Comparator)), size = 4) +
+  scale_color_manual(values=c("azure3","#481567FF","#95D840FF"),
+                     breaks=c("modl_ga_fifth", "min.ac50.sel.fifth", "cytotox_lower_bound_log"),
+                     labels=c("5th-%ile ToxCast AC50", "5th-%ile Selective DNT AC50", "Burst"))+
+  scale_shape_manual(values=c(16,15,17),
+                     breaks=c("modl_ga_fifth", "min.ac50.sel.fifth", "cytotox_lower_bound_log"),
+                     labels=c("5th-%ile ToxCast AC50", "5th-%ile Selective DNT AC50", "Burst"))+
+  xlab('Chemical')+
+  ylab('log10 micromolar value')+
+  theme_bw() +
+  geom_text(data=mc5.tox.long, 
+            aes(x=chnm, 
+                y= 5, 
+                label=paste(active.assay.count, "/", total.assay.screened),
+                group=`chnm`),  size=3,
+            position = position_dodge(1))+
+  theme(axis.text.y= element_text(size=12),
+        legend.position="top",
+        legend.title = element_blank())+
+  scale_y_continuous(breaks=seq(-6,6,1))+
+  coord_flip(ylim=c(-7,7))
+mc5.dnt
+
+file.dir <- paste("./figures/", sep="")
+file.name <- paste("/Fig6b_DNT_sel_ToxCast_burst_", Sys.Date(), ".png", sep="")
+file.path <- paste(file.dir, file.name, sep="")
+dir.create(path=file.dir, showWarnings = FALSE, recursive = TRUE)
+png(file.path, width = 8, height = 12, unit='in',res = 600)
+mc5.dnt
+dev.off()
+
+```
+
+# 9. Create Supplemental Tables File
+```{r Supp Tables, results= "hide", warning=FALSE, message=FALSE}
+supp.tb2 <- read.xlsx('./input/Supp_tb2_performance_control_descriptions.xlsx')
+
+list.supp <- list('SuppTb1_Chems_List' =chems,
+                  'SuppTb2_Controls_Desc'=supp.tb2,
+                  'SuppTb3_HTTK_model_info'=httk.info.tbl,
+                  'SuppTb4_DMSO'=dmso.cv.mea.hci.mc0.df,
+                  'SuppTb5_repeats_NFA'=repeat.chem.summary.df,
+                  'SuppTb6_NFA_control'=pos.tbl.nfa,
+                  'SuppTb7_HCI_control'=hci.mc5.ctrls.df,
+                  'SuppTb8_AC50_matrix'= mat.all.supp.tb8,
+                  'SuppTb9_RF_import'=rf.imp,
+                  'SuppTb10_Selectivity_matrix'=mat.all.sel,
+                  'Supp11_NFA_cyto'=mea.mc5.summary,
+                  'Supp12_HCI_cyto'=hci.mc5.summary,
+                  'Supp13_HTTK_AEDs'=fn.com.pos.supp.tb)
+
+write.xlsx(list.supp, file='./output/Supp_tbls_manuscript_2021.xlsx', overwrite=TRUE)
+
+```

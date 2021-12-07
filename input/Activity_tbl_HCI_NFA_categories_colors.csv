@@ -1,0 +1,58 @@
+,aenm,number,activity,number.cyto,activity.cyto
+17,MUNDY_HCI_hNP1_Casp3_7_gain,#999999,"Apoptosis, hNP1",#000000,Cytotoxicity
+18,MUNDY_HCI_hNP1_CellTiter_loss,#999999,"Apoptosis, hNP1",#000000,Cytotoxicity
+30,CCTE_Shafer_MEA_dev_burst_duration_mean_dn,#E69F00,Bursting,#E69F00,Bursting
+52,CCTE_Shafer_MEA_dev_interburst_interval_mean_dn,#E69F00,Bursting,#E69F00,Bursting
+72,CCTE_Shafer_MEA_dev_per_burst_interspike_interval_dn,#E69F00,Bursting,#E69F00,Bursting
+76,CCTE_Shafer_MEA_dev_per_burst_spike_percent_dn,#E69F00,Bursting,#E69F00,Bursting
+90,CCTE_Shafer_MEA_dev_spike_duration_mean_dn,#E69F00,Bursting,#E69F00,Bursting
+22,CCTE_Shafer_MEA_dev_AB_dn,#000000,Cytotoxicity MEA,#000000,Cytotoxicity
+23,CCTE_Shafer_MEA_dev_LDH_dn,#000000,Cytotoxicity MEA,#000000,Cytotoxicity
+26,CCTE_Shafer_MEA_dev_active_electrodes_number_dn,#56B4E9,General,#56B4E9,General
+34,CCTE_Shafer_MEA_dev_burst_rate_dn,#56B4E9,General,#56B4E9,General
+38,CCTE_Shafer_MEA_dev_bursting_electrodes_number_dn,#56B4E9,General,#56B4E9,General
+46,CCTE_Shafer_MEA_dev_firing_rate_mean_dn,#56B4E9,General,#56B4E9,General
+42,CCTE_Shafer_MEA_dev_correlation_coefficient_mean_dn,#009E73,Network Connectivity,#009E73,Network Connectivity
+56,CCTE_Shafer_MEA_dev_mutual_information_norm_dn,#009E73,Network Connectivity,#009E73,Network Connectivity
+60,CCTE_Shafer_MEA_dev_network_spike_duration_std_dn,#009E73,Network Connectivity,#009E73,Network Connectivity
+64,CCTE_Shafer_MEA_dev_network_spike_number_dn,#009E73,Network Connectivity,#009E73,Network Connectivity
+68,CCTE_Shafer_MEA_dev_network_spike_peak_dn,#009E73,Network Connectivity,#009E73,Network Connectivity
+78,CCTE_Shafer_MEA_dev_per_network_spike_interspike_interval_mean_dn,#009E73,Network Connectivity,#009E73,Network Connectivity
+82,CCTE_Shafer_MEA_dev_per_network_spike_spike_number_mean_dn,#009E73,Network Connectivity,#009E73,Network Connectivity
+86,CCTE_Shafer_MEA_dev_per_network_spike_spike_percent_dn,#009E73,Network Connectivity,#009E73,Network Connectivity
+13,MUNDY_HCI_hN2_NOG_BPCount_loss,#F0E442,"NOG initiation, hN2",#F0E442,"NOG initiation, hN2"
+14,MUNDY_HCI_hN2_NOG_NeuriteCount_loss,#F0E442,"NOG initiation, hN2",#F0E442,"NOG initiation, hN2"
+15,MUNDY_HCI_hN2_NOG_NeuriteLength_loss,#F0E442,"NOG initiation, hN2",#F0E442,"NOG initiation, hN2"
+16,MUNDY_HCI_hN2_NOG_NeuronCount_loss,#F0E442,"NOG initiation, hN2",#000000,Cytotoxicity
+1,MUNDY_HCI_Cortical_NOG_BPCount_loss,#0072B2,"NOG initiation, rat",#0072B2,"NOG initiation, rat"
+2,MUNDY_HCI_Cortical_NOG_NeuriteCount_loss,#0072B2,"NOG initiation, rat",#0072B2,"NOG initiation, rat"
+3,MUNDY_HCI_Cortical_NOG_NeuriteLength_loss,#0072B2,"NOG initiation, rat",#0072B2,"NOG initiation, rat"
+4,MUNDY_HCI_Cortical_NOG_NeuronCount_loss,#0072B2,"NOG initiation, rat",#000000,Cytotoxicity
+19,MUNDY_HCI_hNP1_Pro_MeanAvgInten_loss,#CC79A7,"Proliferation, hNP1",#CC79A7,"Proliferation, hNP1"
+20,MUNDY_HCI_hNP1_Pro_ObjectCount_loss,#CC79A7,"Proliferation, hNP1",#000000,Cytotoxicity
+21,MUNDY_HCI_hNP1_Pro_ResponderAvgInten_loss,#CC79A7,"Proliferation, hNP1",#CC79A7,"Proliferation, hNP1"
+5,MUNDY_HCI_Cortical_Synap&Neur_Matur_BPCount_loss,#D55E00,"Synaptogenesis/maturation, rat",#D55E00,"Synaptogenesis/maturation, rat"
+6,MUNDY_HCI_Cortical_Synap&Neur_Matur_CellBodySpotCount_loss,#D55E00,"Synaptogenesis/maturation, rat",#D55E00,"Synaptogenesis/maturation, rat"
+7,MUNDY_HCI_Cortical_Synap&Neur_Matur_NeuriteCount_loss,#D55E00,"Synaptogenesis/maturation, rat",#D55E00,"Synaptogenesis/maturation, rat"
+8,MUNDY_HCI_Cortical_Synap&Neur_Matur_NeuriteLength_loss,#D55E00,"Synaptogenesis/maturation, rat",#D55E00,"Synaptogenesis/maturation, rat"
+9,MUNDY_HCI_Cortical_Synap&Neur_Matur_NeuriteSpotCountPerNeuriteLength_loss,#D55E00,"Synaptogenesis/maturation, rat",#D55E00,"Synaptogenesis/maturation, rat"
+10,MUNDY_HCI_Cortical_Synap&Neur_Matur_NeuriteSpotCountPerNeuron_loss,#D55E00,"Synaptogenesis/maturation, rat",#D55E00,"Synaptogenesis/maturation, rat"
+11,MUNDY_HCI_Cortical_Synap&Neur_Matur_NeuronCount_loss,#D55E00,"Synaptogenesis/maturation, rat",#000000,Cytotoxicity
+12,MUNDY_HCI_Cortical_Synap&Neur_Matur_SynapseCount_loss,#D55E00,"Synaptogenesis/maturation, rat",#D55E00,"Synaptogenesis/maturation, rat"
+,CCTE_Shafer_MEA_dev_firing_rate_mean_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_burst_rate_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_active_electrodes_number_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_bursting_electrodes_number_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_per_burst_interspike_interval_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_per_burst_spike_percent_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_burst_duration_mean_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_interburst_interval_mean_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_network_spike_number_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_network_spike_peak_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_spike_duration_mean_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_network_spike_duration_std_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_per_network_spike_interspike_interval_mean_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_per_network_spike_spike_number_mean_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_per_network_spike_spike_percent_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_correlation_coefficient_mean_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
+,CCTE_Shafer_MEA_dev_mutual_information_norm_up,gray88,MEA NFA '_up',gray88,MEA NFA '_up'
